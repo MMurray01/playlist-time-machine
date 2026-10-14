@@ -1,17 +1,20 @@
+export interface MusicKitInstance {
+  authorize: () => Promise<string>
+  musicUserToken?: string
+  isAuthorized?: boolean
+  setQueue?: (options: { song: string }) => Promise<void>
+  play?: () => Promise<void>
+  pause?: () => Promise<void>
+}
+
 declare global {
   interface Window {
     MusicKit?: {
       configure: (config: {
         developerToken: string
         app: { name: string; build: string }
-      }) => Promise<{
-        authorize: () => Promise<string>
-        musicUserToken?: string
-      }>
-      getInstance: () => {
-        authorize: () => Promise<string>
-        musicUserToken?: string
-      }
+      }) => Promise<MusicKitInstance>
+      getInstance: () => MusicKitInstance
     }
   }
 }

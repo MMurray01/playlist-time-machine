@@ -387,7 +387,24 @@ body {
   margin-top: 1.75rem;
 }
 
-.lead-art figcaption {
+.lead-card {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lead-card .lead-title,
+.lead-card .lead-artist {
+  display: block;
+}
+
+.lead-card .lead-title {
   margin-top: 0.65rem;
 }
 
@@ -440,17 +457,124 @@ body {
   margin-top: 0.45rem;
 }
 
+.view-toggle {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 1.25rem;
+}
+
+.view-toggle button {
+  min-height: 2.25rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--ptm-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ptm-ink-soft);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.view-toggle button[aria-pressed="true"] {
+  border-color: var(--ptm-ink);
+  background: var(--ptm-ink);
+  color: var(--ptm-on-ink);
+}
+
 .tracks {
   margin-top: 0.85rem;
 }
 
 .track {
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--ptm-line);
+}
+
+.track-button {
   display: grid;
   grid-template-columns: 4.5rem minmax(0, 1fr);
   align-items: center;
   gap: 0.9rem;
-  padding: 0.7rem 0;
-  border-top: 1px solid var(--ptm-line);
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.track-copy {
+  min-width: 0;
+}
+
+.cover-row {
+  display: flex;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.35rem;
+}
+
+.cover-card {
+  display: flex;
+  flex: 0 0 10.5rem;
+  flex-direction: column;
+  gap: 0.45rem;
+  scroll-snap-align: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cover-card .cover {
+  width: 10.5rem;
+  height: 10.5rem;
+}
+
+.song-dialog {
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--ptm-surface);
+  color: var(--ptm-ink);
+  box-shadow: 0 24px 60px rgba(17, 17, 19, 0.18);
+}
+
+.song-dialog::backdrop {
+  background: rgba(17, 17, 19, 0.42);
+}
+
+.song-dialog-body {
+  padding: 1.25rem 1.25rem 1.4rem;
+  text-align: center;
+}
+
+.cover-detail {
+  width: min(16rem, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 auto 1rem;
+  border-radius: 12px;
+  font-size: 2rem;
+}
+
+.song-play {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.song-dialog .linkish {
+  display: inline-block;
+  margin-top: 0.9rem;
 }
 
 .cover {

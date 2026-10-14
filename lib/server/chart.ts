@@ -2,46 +2,39 @@ import "server-only"
 
 import { buildPlaylist, mapHitRow } from "@/lib/playlist/hits"
 import type { BuiltPlaylist, ChartHit } from "@/lib/playlist/types"
-import { graduationWindow, isValidGraduationYear } from "@/lib/playlist/window"
+import { graduationWindow, graduationYearLimits, graduationYearMessage, isValidGraduationYear } from "@/lib/playlist/window"
 import { createReadClient } from "@/lib/server/supabase"
 
 const HIT_COLUMNS =
   "song_id, year, week_number, chart_date, title, artist_name, genre, weeks_at_position"
 
-export async function listChartGenres(): Promise<{
-  genres: string[]
-  configured: boolean
+export async function getChartYearSpan(): Promise<{
+  minYear: number | null
+  maxYear: number | null
   error: string | null
 }> {
   const client = createReadClient()
   if (!client) {
-    return { genres: [], configured: false, error: "The chart library is not connected yet." }
+    return { minYear: null, maxYear: null, error: "The chart library is not connected yet." }
   }
 
-  const names = new Set<string>()
   try {
-    for (let from = 0; from < 10000; from += 1000) {
-      const { data, error } = await client
-        .from("number_one_hits")
-        .select("genre")
-        .order("genre", { ascending: true })
-        .range(from, from + 999)
-      if (error) {
-        return { genres: [], configured: true, error: "The chart library could not be read." }
-      }
-      for (const row of data ?? []) {
-        if (typeof row.genre === "string" && row.genre.trim()) names.add(row.genre.trim())
-      }
-      if (!data || data.length < 1000) break
+    const [earliest, latest] = await Promise.all([
+      client.from("number_one_hits").select("year").order("year", { ascending: true }).limit(1),
+      client.from("number_one_hits").select("year").order("year", { ascending: false }).limit(1),
+    ])
+    if (earliest.error || latest.error) {
+      return { minYear: null, maxYear: null, error: "The chart library could not be read." }
+    }
+    const minYear = earliest.data?.[0]?.year
+    const maxYear = latest.data?.[0]?.year
+    return {
+      minYear: typeof minYear === "number" ? minYear : null,
+      maxYear: typeof maxYear === "number" ? maxYear : null,
+      error: null,
     }
   } catch {
-    return { genres: [], configured: true, error: "The chart library could not be read." }
-  }
-
-  return {
-    genres: [...names].sort((a, b) => a.localeCompare(b)),
-    configured: true,
-    error: null,
+    return { minYear: null, maxYear: null, error: "The chart library could not be read." }
   }
 }
 
@@ -50,8 +43,9 @@ export async function loadBuiltPlaylist(input: {
   genres: string[]
   title?: string
 }): Promise<{ ok: true; playlist: BuiltPlaylist } | { ok: false; error: string }> {
-  if (!isValidGraduationYear(input.graduationYear)) {
-    return { ok: false, error: "Enter a graduation year from 1955 through 2035." }
+  const limits = graduationYearLimits()
+  if (!isValidGraduationYear(input.graduationYear, limits)) {
+    return { ok: false, error: graduationYearMessage(input.graduationYear, limits) }
   }
 
   const client = createReadClient()

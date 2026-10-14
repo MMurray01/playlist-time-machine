@@ -1,55 +1,65 @@
 "use client"
 
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { generatePlaylistAction } from "@/actions/playlist-actions"
 import { FromSpotify } from "@/components/from-spotify"
 import { PlaylistDocument } from "@/components/playlist-document"
 import type { BuiltPlaylist, ProviderAvailability } from "@/lib/playlist/types"
-import { graduationWindow, isValidGraduationYear, MAX_GRADUATION_YEAR, MIN_GRADUATION_YEAR } from "@/lib/playlist/window"
-
-function parseYear(value: string): number | null {
-  if (!/^\d{4}$/.test(value)) return null
-  const year = Number(value)
-  return isValidGraduationYear(year) ? year : null
-}
+import {
+  currentCalendarYear,
+  graduationWindow,
+  graduationYearLimits,
+  graduationYearMessage,
+  isValidGraduationYear,
+} from "@/lib/playlist/window"
 
 export function TimeMachine({
-  genres,
   providers,
   libraryError,
+  chartMinYear,
+  chartMaxYear,
 }: {
-  genres: string[]
   providers: ProviderAvailability
   libraryError: string | null
+  chartMinYear: number | null
+  chartMaxYear: number | null
 }) {
+  const limits = useMemo(
+    () => graduationYearLimits({ chartMinYear, chartMaxYear }),
+    [chartMinYear, chartMaxYear],
+  )
   const [year, setYear] = useState("")
-  const [selected, setSelected] = useState<string[]>([])
   const [playlist, setPlaylist] = useState<BuiltPlaylist | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(libraryError ?? "")
   const pendingScroll = useRef(false)
 
-  const yearNumber = parseYear(year)
-  const windowHint = yearNumber
-    ? `Class of ${yearNumber} covers ${graduationWindow(yearNumber).startYear} through ${graduationWindow(yearNumber).endYear}.`
-    : `Use a year from ${MIN_GRADUATION_YEAR} through ${MAX_GRADUATION_YEAR}.`
+  const typedYear = /^\d{4}$/.test(year) ? Number(year) : null
+  const yearNumber = typedYear != null && isValidGraduationYear(typedYear, limits) ? typedYear : null
+  const windowHint =
+    yearNumber != null
+      ? `Class of ${yearNumber} includes every No. 1 from ${graduationWindow(yearNumber).startYear} through ${graduationWindow(yearNumber).endYear}.`
+      : typedYear != null
+        ? graduationYearMessage(typedYear, limits, currentCalendarYear())
+        : `Enter the year you graduated high school, from ${limits.min} through ${limits.max}.`
 
   useEffect(() => {
     const raw = sessionStorage.getItem("ptm-draft")
     if (!raw) return
     try {
-      const draft = JSON.parse(raw) as { playlist?: BuiltPlaylist; year?: string; genres?: string[] }
-      if (draft.playlist) setPlaylist(draft.playlist)
-      if (typeof draft.year === "string") setYear(draft.year)
-      if (Array.isArray(draft.genres)) setSelected(draft.genres.filter((genre) => typeof genre === "string"))
+      const draft = JSON.parse(raw) as { playlist?: BuiltPlaylist; year?: string }
+      if (typeof draft.year === "string" && isValidGraduationYear(Number(draft.year), limits)) {
+        setYear(draft.year)
+        if (draft.playlist) setPlaylist(draft.playlist)
+      }
     } catch {
       sessionStorage.removeItem("ptm-draft")
     }
-  }, [])
+  }, [limits])
 
   function step(delta: number) {
-    const base = yearNumber ?? 1984
-    const next = Math.min(MAX_GRADUATION_YEAR, Math.max(MIN_GRADUATION_YEAR, base + delta))
+    const base = yearNumber ?? Math.min(limits.max, Math.max(limits.min, 1984))
+    const next = Math.min(limits.max, Math.max(limits.min, base + delta))
     setYear(String(next))
   }
 
@@ -63,24 +73,26 @@ export function TimeMachine({
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (typedYear != null && yearNumber == null) {
+      setError(graduationYearMessage(typedYear, limits, currentCalendarYear()))
+      return
+    }
     if (!yearNumber) {
-      setError(`Enter a graduation year from ${MIN_GRADUATION_YEAR} through ${MAX_GRADUATION_YEAR}.`)
+      setError(`Enter the year you graduated high school, from ${limits.min} through ${limits.max}.`)
       return
     }
     setLoading(true)
     setError("")
     try {
-      const result = await generatePlaylistAction(yearNumber, selected)
+      const result = await generatePlaylistAction(yearNumber)
       if (!result.ok) {
+        setPlaylist(null)
         setError(result.error)
         return
       }
       pendingScroll.current = true
       setPlaylist(result.playlist)
-      sessionStorage.setItem(
-        "ptm-draft",
-        JSON.stringify({ playlist: result.playlist, year: String(yearNumber), genres: selected }),
-      )
+      sessionStorage.setItem("ptm-draft", JSON.stringify({ playlist: result.playlist, year: String(yearNumber) }))
     } catch {
       setError("The playlist could not be built. Try again.")
     } finally {
@@ -98,15 +110,15 @@ export function TimeMachine({
           <p className="wordmark">Playlist Time Machine</p>
           <h1>The No. 1s from your class.</h1>
           <p className="lede">
-            Enter the year you graduated. This builds every Hot 100 No. 1 from five years before that year through
-            five years after, in the order they reached No. 1.
+            What year did you graduate high school? You get every Hot 100 No. 1 from five years before that year
+            through five years after, in the order they reached No. 1.
           </p>
         </header>
 
         <form onSubmit={onSubmit} aria-busy={loading}>
           <div>
             <label htmlFor="graduation-year" className="field-label">
-              Graduation year
+              What year did you graduate high school?
             </label>
             <div className="year-row">
               <button type="button" onClick={() => step(-1)} aria-label="Earlier graduation year" className="step">
@@ -118,6 +130,9 @@ export function TimeMachine({
                 inputMode="numeric"
                 autoComplete="off"
                 aria-describedby="year-hint"
+                aria-invalid={typedYear != null && yearNumber == null}
+                min={limits.min}
+                max={limits.max}
                 value={year}
                 onChange={(event) => setYear(event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
               />
@@ -129,37 +144,6 @@ export function TimeMachine({
               {windowHint}
             </p>
           </div>
-
-          {genres.length > 0 ? (
-            <fieldset className="styles">
-              <legend className="field-label">
-                Styles <span>Optional</span>
-              </legend>
-              <p className="hint" style={{ marginTop: "0.35rem" }}>
-                Leave these off to include every No. 1.
-              </p>
-              <div className="chips">
-                {genres.map((genre) => {
-                  const pressed = selected.includes(genre)
-                  return (
-                    <button
-                      key={genre}
-                      type="button"
-                      aria-pressed={pressed}
-                      onClick={() =>
-                        setSelected((current) =>
-                          current.includes(genre) ? current.filter((item) => item !== genre) : [...current, genre],
-                        )
-                      }
-                      className="chip"
-                    >
-                      {genre}
-                    </button>
-                  )
-                })}
-              </div>
-            </fieldset>
-          ) : null}
 
           {error ? (
             <p role="alert" className="alert">

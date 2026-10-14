@@ -20,9 +20,11 @@ pnpm build
 
 ## What you get
 
-Enter a graduation year. Class of 1984 covers 1979 through 1989: 217 No. 1s, starting with Le Freak, Too Much Heaven, and I Will Survive. Styles are optional. Leave them off to include every song.
+Enter the year you graduated high school. The latest year is the current year, and it stays inside the years the chart library covers. A year with no No. 1s gets a short message. Class of 1984 covers 1979 through 1989: 217 No. 1s, starting with Le Freak, Too Much Heaven, and I Will Survive.
 
 Each year has a short note built from the chart rows: how many songs reached No. 1, which songs are listed with the most weeks at No. 1, and which artists had the most No. 1s. `lib/playlist/editorial.ts` is where a later hand-written note can sit beside those facts.
+
+The song list appears immediately, grouped by year. Covers for the first three years load first; later years load as you scroll. Tap a song for a large cover and a 30-second Apple Music preview. No sign-in is required for that preview. After you save, a subscriber can play the full song. **Covers** is an optional horizontal browse for one year. The default view stays a list.
 
 Save the playlist to Apple Music in one tap. Songs are added in batches of 100. The page reports how many songs matched and lists the ones Apple Music did not have. People coming from another service can open `/from-spotify`.
 

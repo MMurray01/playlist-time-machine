@@ -15,22 +15,40 @@ interface AppleSongJson {
     artistName?: string
     url?: string
     artwork?: { url?: string }
+    previews?: { url?: string }[]
   }
 }
 
-export function appleArtworkUrl(template: string | undefined): string | null {
+/** List covers stay small. The song detail asks for a larger file from the same template. */
+export const ARTWORK_LIST_SIZE = 240
+export const ARTWORK_DETAIL_SIZE = 800
+
+export function appleArtworkUrl(template: string | undefined, size = ARTWORK_LIST_SIZE): string | null {
   if (!template) return null
-  return template.replace("{w}", "640").replace("{h}", "640").replace("{f}", "jpg")
+  return template.replace("{w}", String(size)).replace("{h}", String(size)).replace("{f}", "jpg")
+}
+
+function httpsUrl(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" ? url.toString() : null
+  } catch {
+    return null
+  }
 }
 
 export function appleSongToCandidate(song: AppleSongJson): CatalogCandidate | null {
   if (!song.id || !song.attributes?.name) return null
+  const template = song.attributes.artwork?.url
   return {
     id: song.id,
     title: song.attributes.name,
     artist: song.attributes.artistName ?? "",
-    artworkUrl: appleArtworkUrl(song.attributes.artwork?.url),
-    url: song.attributes.url ?? null,
+    artworkUrl: appleArtworkUrl(template, ARTWORK_LIST_SIZE),
+    artworkLargeUrl: appleArtworkUrl(template, ARTWORK_DETAIL_SIZE),
+    previewUrl: httpsUrl(song.attributes.previews?.find((preview) => preview.url)?.url),
+    url: httpsUrl(song.attributes.url),
   }
 }
 

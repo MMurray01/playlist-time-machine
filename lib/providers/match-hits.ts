@@ -31,6 +31,8 @@ export async function matchHits(
         artist: row.hit.artist,
         catalogId: row.candidate.id,
         artworkUrl: row.candidate.artworkUrl,
+        artworkLargeUrl: row.candidate.artworkLargeUrl ?? null,
+        previewUrl: row.candidate.previewUrl ?? null,
         url: row.candidate.url,
       })
     } else {

@@ -29,6 +29,14 @@ Apply `supabase/migrations/20261014020000_shared_playlist_title.sql` yourself if
 
 There is no Apple song id on `number_one_hits` today, so this deploy does not add one. Matching uses the song title and artist. If a row includes `apple_song_id`, the matcher uses that catalog id only when the title and artist still agree. No migration was added.
 
+## Graduation year, covers, and previews
+
+The page asks for one thing: the year you graduated high school. The server and the year field both reject a year after the current calendar year. The range also stops five years after the newest chart year and starts no earlier than 1955, or five years before the oldest chart year when that is later. A year whose window has no No. 1s returns a short message instead of an empty playlist.
+
+The playlist paints grouped by year before album art arrives. The first three years with songs request covers right away. Later years request covers when they are near the screen. Catalog lookups are cached in server memory for six hours. List images use Apple’s artwork template at 240px, and the song detail uses 800px. The Next.js image optimizer stays off because artwork hosts vary.
+
+Tap a song to open a large cover, a 30-second catalog preview (`previews[].url`, no sign-in), and an Open in Apple Music link. Full playback is offered only after Save to Apple Music has authorized MusicKit. **Covers** is optional: a horizontal, swipeable row inside each year, with arrow keys moving between albums. The default is the list, so year notes and chart order stay readable. A perspective Cover Flow was skipped because the extra motion would not make the songs clearer.
+
 ## Apple Music
 
 This app does not use an Apple redirect URI. MusicKit JS asks the listener to approve access on the page, then the server creates the playlist with the developer token and that listener’s token.

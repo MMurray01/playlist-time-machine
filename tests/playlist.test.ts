@@ -12,9 +12,11 @@ import { tokens } from "@/lib/playlist/tokens"
 import type { CatalogCandidate, ChartHit } from "@/lib/playlist/types"
 import {
   cleanPlaylistTitle,
+  emptyChartMessage,
   graduationWindow,
+  graduationYearLimits,
+  graduationYearMessage,
   isValidGraduationYear,
-  MAX_GRADUATION_YEAR,
   MIN_GRADUATION_YEAR,
 } from "@/lib/playlist/window"
 
@@ -39,11 +41,22 @@ describe("graduation window", () => {
   })
 
   it("rejects years outside the picker and fractional years", () => {
-    expect(isValidGraduationYear(1984)).toBe(true)
-    expect(isValidGraduationYear(MIN_GRADUATION_YEAR)).toBe(true)
-    expect(isValidGraduationYear(MAX_GRADUATION_YEAR)).toBe(true)
-    expect(isValidGraduationYear(1954)).toBe(false)
-    expect(isValidGraduationYear(2036)).toBe(false)
+    const limits = graduationYearLimits({
+      now: new Date("2026-10-14T12:00:00Z"),
+      chartMinYear: 1960,
+      chartMaxYear: 2025,
+    })
+    expect(limits).toEqual({ min: MIN_GRADUATION_YEAR, max: 2026 })
+    expect(isValidGraduationYear(1984, limits)).toBe(true)
+    expect(isValidGraduationYear(2026, limits)).toBe(true)
+    expect(isValidGraduationYear(2027, limits)).toBe(false)
+    expect(isValidGraduationYear(1954, limits)).toBe(false)
+    expect(graduationYearLimits({ now: new Date("2026-10-14T12:00:00Z"), chartMaxYear: 2010 }).max).toBe(2015)
+    expect(graduationYearMessage(2027, limits, 2026)).toMatch(/hasn’t happened yet/)
+    expect(graduationYearMessage(2016, graduationYearLimits({ now: new Date("2026-10-14T12:00:00Z"), chartMaxYear: 2010 }), 2026)).toMatch(
+      /doesn’t cover/,
+    )
+    expect(emptyChartMessage(1990)).toMatch(/no No\. 1s/)
     expect(() => graduationWindow(1984.5)).toThrow(/whole number/)
   })
 

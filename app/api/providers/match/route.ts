@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAppleSearcher } from "@/lib/providers/apple"
 import { readAppleMusicCredentials, signAppleDeveloperToken } from "@/lib/providers/apple-token"
 import { matchHits } from "@/lib/providers/match-hits"
-import type { MatchTrack } from "@/lib/playlist/types"
+import type { CatalogCandidate, MatchTrack } from "@/lib/playlist/types"
+import { catalogCacheKey, readCatalogCache, writeCatalogCache } from "@/lib/server/catalog-cache"
 
 const APPLE_SONG_ID = /^[0-9]{2,18}$/
 
@@ -47,7 +48,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const developerToken = await signAppleDeveloperToken({ ...credentials, expiresIn: "1d" })
-    const lookup = await matchHits(tracks, createAppleSearcher(fetch, developerToken))
+    const search = createAppleSearcher(fetch, developerToken)
+    const lookup = await matchHits(tracks, async (hit) => {
+      const key = catalogCacheKey(hit)
+      const cached = readCatalogCache(key)
+      if (cached) return cached
+      const found: CatalogCandidate[] = await search(hit)
+      writeCatalogCache(key, found)
+      return found
+    })
     return NextResponse.json({ skipped: false, ...lookup })
   } catch (error) {
     console.error("Apple catalog lookup failed", error instanceof Error ? error.message : "unknown")

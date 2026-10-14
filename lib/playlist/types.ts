@@ -64,6 +64,8 @@ export interface CatalogCandidate {
   title: string
   artist: string
   artworkUrl: string | null
+  artworkLargeUrl?: string | null
+  previewUrl?: string | null
   url: string | null
 }
 
@@ -80,6 +82,8 @@ export interface MatchedTrack {
   artist: string
   catalogId: string
   artworkUrl: string | null
+  artworkLargeUrl?: string | null
+  previewUrl?: string | null
   url: string | null
 }
 

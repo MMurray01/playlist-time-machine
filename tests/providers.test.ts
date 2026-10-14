@@ -1,7 +1,15 @@
 import { generateKeyPairSync } from "node:crypto"
 import { importSPKI, jwtVerify } from "jose"
 import { describe, expect, it } from "vitest"
-import { APPLE_TRACKS_PER_REQUEST, createAppleMusicPlaylist, createAppleSearcher } from "@/lib/providers/apple"
+import {
+  APPLE_TRACKS_PER_REQUEST,
+  ARTWORK_DETAIL_SIZE,
+  ARTWORK_LIST_SIZE,
+  appleSongToCandidate,
+  createAppleMusicPlaylist,
+  createAppleSearcher,
+} from "@/lib/providers/apple"
+import { catalogCacheKey, readCatalogCache, writeCatalogCache } from "@/lib/server/catalog-cache"
 import { signAppleDeveloperToken } from "@/lib/providers/apple-token"
 import { chunk } from "@/lib/providers/batch"
 import { chooseCatalogMatch } from "@/lib/playlist/match"
@@ -117,6 +125,36 @@ describe("Apple Music catalog matching", () => {
     expect(chooseCatalogMatch({ title: "Le Freak", artist: "Chic" }, stored)?.id).toBe("999")
     const wrong = await search({ title: "Le Freak", artist: "Chic", appleSongId: "111" })
     expect(chooseCatalogMatch({ title: "Le Freak", artist: "Chic" }, wrong)?.id).toBe("222")
+  })
+
+  it("requests a small list cover, a larger detail cover, and an https preview", () => {
+    const candidate = appleSongToCandidate({
+      id: "1",
+      attributes: {
+        name: "Le Freak",
+        artistName: "Chic",
+        url: "https://music.apple.com/us/song/le-freak/1",
+        artwork: { url: "https://example.test/{w}x{h}bb.{f}" },
+        previews: [{ url: "https://example.test/preview.m4a" }],
+      },
+    })
+    expect(candidate?.artworkUrl).toBe(`https://example.test/${ARTWORK_LIST_SIZE}x${ARTWORK_LIST_SIZE}bb.jpg`)
+    expect(candidate?.artworkLargeUrl).toBe(`https://example.test/${ARTWORK_DETAIL_SIZE}x${ARTWORK_DETAIL_SIZE}bb.jpg`)
+    expect(candidate?.previewUrl).toBe("https://example.test/preview.m4a")
+    expect(
+      appleSongToCandidate({
+        id: "2",
+        attributes: { name: "Nope", previews: [{ url: "http://insecure.test/no.m4a" }] },
+      })?.previewUrl,
+    ).toBeNull()
+  })
+
+  it("remembers a catalog lookup until the cache expires", () => {
+    const key = catalogCacheKey({ title: "Le Freak", artist: "Chic", appleSongId: "999" })
+    const value = [{ id: "999", title: "Le Freak", artist: "Chic", artworkUrl: null, url: null }]
+    writeCatalogCache(key, value, 1_000)
+    expect(readCatalogCache(key, 1_000 + 1_000)).toEqual(value)
+    expect(readCatalogCache(key, 1_000 + 6 * 60 * 60 * 1000)).toBeUndefined()
   })
 
   it("lists a catalog miss without failing the songs that matched", async () => {
