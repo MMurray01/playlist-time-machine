@@ -8,6 +8,8 @@ export interface ChartHit {
   genre: string
   /** Apple Music catalog song id, when the chart row has one. */
   appleSongId: string | null
+  /** Recording code, when the chart row has one. The current chart view does not. */
+  isrc?: string | null
   weeksAtNumberOne: number | null
 }
 
@@ -74,6 +76,7 @@ export interface MatchTrack {
   title: string
   artist: string
   appleSongId?: string | null
+  isrc?: string | null
 }
 
 export interface MatchedTrack {

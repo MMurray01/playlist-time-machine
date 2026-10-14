@@ -37,6 +37,7 @@ async function lookupHits(hits: ChartHit[]): Promise<LookupResult> {
           title: hit.title,
           artist: hit.artist,
           appleSongId: hit.appleSongId,
+          isrc: hit.isrc ?? null,
         })),
       }),
     })
@@ -121,7 +122,6 @@ function YearBlock({
   catalog,
   brokenArt,
   browse,
-  apple,
   eager,
   onVisible,
   onSelect,
@@ -131,7 +131,6 @@ function YearBlock({
   catalog: Record<string, MatchedTrack | null>
   brokenArt: Record<string, true>
   browse: "list" | "covers"
-  apple: boolean
   eager: boolean
   onVisible: (hits: ChartHit[]) => void
   onSelect: (key: string) => void
@@ -184,7 +183,7 @@ function YearBlock({
                 <Cover
                   hit={hit}
                   art={entry?.artworkUrl ?? undefined}
-                  pending={apple && entry === undefined}
+                  pending={entry === undefined}
                   broken={Boolean(brokenArt[key])}
                   eager={eager}
                   onError={() => onBroken(key)}
@@ -210,7 +209,7 @@ function YearBlock({
                   <Cover
                     hit={hit}
                     art={entry?.artworkUrl ?? undefined}
-                    pending={apple && entry === undefined}
+                    pending={entry === undefined}
                     broken={Boolean(brokenArt[key])}
                     eager={eager}
                     onError={() => onBroken(key)}
@@ -286,7 +285,6 @@ export function PlaylistDocument({
 
   const loadHits = useRef<(hits: ChartHit[]) => Promise<void>>(async () => {})
   loadHits.current = async (hits: ChartHit[]) => {
-    if (!providers.apple) return
     const ticket = generation.current
     const pending = hits.filter((hit) => {
       const key = hitKey(hit)
@@ -296,8 +294,27 @@ export function PlaylistDocument({
     })
     if (pending.length === 0) return
     try {
-      const result = await lookupHits(pending)
-      if (ticket !== generation.current || result.skipped) return
+      let result = await lookupHits(pending)
+      if (ticket !== generation.current) return
+      if (result.skipped) {
+        for (const hit of pending) requested.current.delete(hitKey(hit))
+        return
+      }
+      const failed = result.unmatched.filter((row) => row.reason === "search_failed")
+      if (failed.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 700))
+        if (ticket !== generation.current) return
+        const retryHits = pending.filter((hit) => failed.some((row) => row.key === hitKey(hit)))
+        const second = await lookupHits(retryHits)
+        if (ticket !== generation.current) return
+        result = {
+          matches: [...result.matches, ...second.matches],
+          unmatched: [
+            ...result.unmatched.filter((row) => row.reason !== "search_failed"),
+            ...second.unmatched,
+          ],
+        }
+      }
       rememberLookup(result)
     } catch {
       if (ticket !== generation.current) return
@@ -308,7 +325,7 @@ export function PlaylistDocument({
   useEffect(() => {
     const first = playlist.years.filter((chapter) => chapter.hits.length > 0).slice(0, 3)
     void loadHits.current(first.flatMap((chapter) => chapter.hits))
-  }, [playlist, providers.apple])
+  }, [playlist])
 
   const onVisible = useRef((hits: ChartHit[]) => {
     void loadHits.current(hits)
@@ -630,7 +647,6 @@ export function PlaylistDocument({
             catalog={catalog}
             brokenArt={brokenArt}
             browse={browse}
-            apple={providers.apple}
             eager={eagerYears.has(chapter.year)}
             onVisible={onVisible.current}
             onSelect={setSelectedKey}
@@ -643,7 +659,7 @@ export function PlaylistDocument({
         <SongDetail
           key={selectedKey ?? undefined}
           hit={selected}
-          match={selectedKey ? (providers.apple ? catalog[selectedKey] : null) : undefined}
+          match={selectedKey ? catalog[selectedKey] : undefined}
           canPlayFull={canPlayFull}
           onClose={() => setSelectedKey(null)}
         />

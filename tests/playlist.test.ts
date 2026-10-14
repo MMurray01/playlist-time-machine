@@ -7,7 +7,7 @@ import { isMissingColumnError } from "@/lib/playlist/errors"
 import { playlistCsv, playlistText } from "@/lib/playlist/export"
 import { buildPlaylist, compareChartOrder, dedupeHits, filterByGenres, mapHitRow, orderHits } from "@/lib/playlist/hits"
 import { createShareId, isShareId } from "@/lib/playlist/ids"
-import { artistMatches, chooseCatalogMatch } from "@/lib/playlist/match"
+import { artistMatches, chooseCatalogMatch, searchQueries } from "@/lib/playlist/match"
 import { deriveYearStory } from "@/lib/playlist/stories"
 import { tokens } from "@/lib/playlist/tokens"
 import type { CatalogCandidate, ChartHit } from "@/lib/playlist/types"
@@ -146,7 +146,14 @@ describe("chart order and genre filter", () => {
       spotify_track_id: null,
       weeks_at_position: "6",
     })
-    expect(mapped).toMatchObject({ songId: 92, weekNumber: 49, weeksAtNumberOne: 6, artist: "Chic", appleSongId: null })
+    expect(mapped).toMatchObject({
+      songId: 92,
+      weekNumber: 49,
+      weeksAtNumberOne: 6,
+      artist: "Chic",
+      appleSongId: null,
+      isrc: null,
+    })
   })
 
   it("keeps an Apple song id when the row has one", () => {
@@ -156,8 +163,10 @@ describe("chart order and genre filter", () => {
       title: "Le Freak",
       artist_name: "Chic",
       apple_song_id: "1234567890",
+      isrc: "usrc17607839",
     })
     expect(mapped?.appleSongId).toBe("1234567890")
+    expect(mapped?.isrc).toBe("USRC17607839")
     const ignored = mapHitRow({
       song_id: 92,
       year: 1979,
@@ -291,6 +300,117 @@ describe("catalog matching", () => {
     expect(artistMatches("M", "Michael Jackson")).toBe(false)
     expect(artistMatches("M", "M")).toBe(true)
     expect(artistMatches("Donna Summer and Barbra Streisand", "Donna Summer")).toBe(true)
+    expect(artistMatches("The Police", "Police")).toBe(true)
+  })
+
+  it("accepts a part number, a medley, and a featured credit the chart line left off", () => {
+    expect(
+      chooseCatalogMatch({ title: "Another Brick in the Wall", artist: "Pink Floyd" }, [
+        {
+          id: "wall",
+          title: "Another Brick In the Wall, Pt. 2",
+          artist: "Pink Floyd",
+          artworkUrl: "https://example.test/wall.jpg",
+          previewUrl: "https://example.test/wall.m4a",
+          url: null,
+        },
+      ])?.id,
+    ).toBe("wall")
+    expect(
+      chooseCatalogMatch({ title: "Stars on 45 Medley", artist: "Stars on 45" }, [
+        {
+          id: "stars",
+          title: "Stars On 45 (Original Single Version)",
+          artist: "Stars On 45",
+          artworkUrl: "https://example.test/stars.jpg",
+          previewUrl: "https://example.test/stars.m4a",
+          url: null,
+        },
+      ])?.id,
+    ).toBe("stars")
+    expect(
+      chooseCatalogMatch({ title: "Stars on 45 Medley", artist: "Stars on 45" }, [
+        {
+          id: "inch",
+          title: "Stars on 45 Original 7-Inch Single Version",
+          artist: "Stars on 45",
+          artworkUrl: "https://example.test/inch.jpg",
+          previewUrl: "https://example.test/inch.m4a",
+          url: null,
+        },
+      ])?.id,
+    ).toBe("inch")
+    expect(
+      chooseCatalogMatch({ title: "Hello", artist: "Lionel Richie" }, [
+        { id: "goodbye", title: "Hello Goodbye", artist: "Lionel Richie", artworkUrl: null, url: null },
+      ]),
+    ).toBeNull()
+    expect(
+      chooseCatalogMatch({ title: "Hello", artist: "Lionel Richie" }, [
+        { id: "adele", title: "Hello", artist: "Adele", artworkUrl: "https://example.test/a.jpg", previewUrl: "https://example.test/a.m4a", url: null },
+      ]),
+    ).toBeNull()
+    expect(
+      chooseCatalogMatch({ title: "Careless Whisper", artist: "Wham!" }, [
+        {
+          id: "george",
+          title: "Careless Whisper",
+          artist: "George Michael",
+          artworkUrl: "https://example.test/cw.jpg",
+          previewUrl: "https://example.test/cw.m4a",
+          url: null,
+        },
+        { id: "seether", title: "Careless Whisper", artist: "Seether", artworkUrl: "https://example.test/s.jpg", previewUrl: "https://example.test/s.m4a", url: null },
+      ])?.id,
+    ).toBe("george")
+    expect(
+      chooseCatalogMatch({ title: "Wishing Well", artist: "Terence Trent D'Arby" }, [
+        { id: "other", title: "Sign Your Name", artist: "Sananda Maitreya", artworkUrl: null, url: null },
+        {
+          id: "well",
+          title: "Wishing Well",
+          artist: "Sananda Maitreya",
+          artworkUrl: "https://example.test/w.jpg",
+          previewUrl: "https://example.test/w.m4a",
+          url: null,
+        },
+      ])?.id,
+    ).toBe("well")
+    expect(
+      chooseCatalogMatch({ title: "Another Brick in the Wall, Pt. 2", artist: "Pink Floyd" }, [
+        { id: "part-1", title: "Another Brick in the Wall, Pt. 1", artist: "Pink Floyd", artworkUrl: null, url: null },
+      ]),
+    ).toBeNull()
+  })
+
+  it("prefers the catalog row that has a cover and a preview", () => {
+    expect(
+      chooseCatalogMatch({ title: "Le Freak", artist: "Chic" }, [
+        { id: "bare", title: "Le Freak", artist: "Chic", artworkUrl: null, previewUrl: null, url: null },
+        {
+          id: "full",
+          title: "Le Freak",
+          artist: "Chic",
+          artworkUrl: "https://example.test/freak.jpg",
+          previewUrl: "https://example.test/freak.m4a",
+          url: null,
+        },
+      ])?.id,
+    ).toBe("full")
+  })
+
+  it("searches the full credit, then the main artist, then the title", () => {
+    expect(searchQueries({ title: "Escape (The Pina Colada Song)", artist: "Rupert Holmes" })).toEqual([
+      "Escape (The Pina Colada Song) Rupert Holmes",
+      "Escape Rupert Holmes",
+      "Escape",
+    ])
+    expect(searchQueries({ title: "Le Freak", artist: "Chic" })).toEqual(["Le Freak Chic", "Le Freak"])
+    expect(searchQueries({ title: "Every Breath You Take", artist: "The Police" })).toEqual([
+      "Every Breath You Take The Police",
+      "Every Breath You Take Police",
+      "Every Breath You Take",
+    ])
   })
 })
 

@@ -17,6 +17,12 @@ function appleSongIdFrom(row: Record<string, unknown>): string | null {
   return null
 }
 
+function isrcFrom(row: Record<string, unknown>): string | null {
+  const value = row.isrc
+  if (typeof value === "string" && /^[A-Za-z0-9]{12}$/.test(value.trim())) return value.trim().toUpperCase()
+  return null
+}
+
 function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string" && value.trim() !== "") {
@@ -45,6 +51,7 @@ export function mapHitRow(row: Record<string, unknown>): ChartHit | null {
     artist,
     genre: typeof row.genre === "string" ? row.genre.trim() : "",
     appleSongId: appleSongIdFrom(row),
+    isrc: isrcFrom(row),
     weeksAtNumberOne: weeks,
   }
 }

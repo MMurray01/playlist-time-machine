@@ -195,6 +195,36 @@ body {
   opacity: 1;
 }
 
+.year-slider {
+  margin-top: 1.35rem;
+}
+
+.year-slider input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 1.75rem;
+  margin: 0;
+  accent-color: var(--ptm-accent);
+  background: transparent;
+}
+
+.year-slider input[type="range"]:focus-visible {
+  outline: 2px solid var(--ptm-accent);
+  outline-offset: 3px;
+}
+
+.year-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.05rem;
+  color: var(--ptm-ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .year-hint {
   margin-top: 0.9rem;
   text-align: center;
@@ -603,6 +633,9 @@ body {
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.04em;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 16%, rgba(17, 17, 19, 0.07) 17% 18%, transparent 19% 42%, rgba(17, 17, 19, 0.05) 43% 44%, transparent 45%),
+    var(--ptm-cover);
 }
 
 .lead-art .cover {

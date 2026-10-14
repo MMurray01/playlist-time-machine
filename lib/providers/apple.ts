@@ -70,6 +70,25 @@ function songsFrom(body: { data?: AppleSongJson[]; results?: { songs?: { data?: 
     .filter((candidate): candidate is CatalogCandidate => candidate != null)
 }
 
+export async function searchAppleMusicSongs(
+  fetchImpl: typeof fetch,
+  developerToken: string,
+  input: { term?: string; isrc?: string; storefront?: string; limit?: number },
+): Promise<CatalogCandidate[]> {
+  const storefront = input.storefront ?? "us"
+  const headers = appleHeaders(developerToken)
+  const url = input.isrc
+    ? `https://api.music.apple.com/v1/catalog/${storefront}/songs?${new URLSearchParams({ "filter[isrc]": input.isrc })}`
+    : `https://api.music.apple.com/v1/catalog/${storefront}/search?${new URLSearchParams({
+        term: input.term ?? "",
+        types: "songs",
+        limit: String(input.limit ?? 5),
+      })}`
+  const response = await fetchImpl(url, { headers })
+  if (!response.ok) throw new Error(`apple_search_${response.status}`)
+  return songsFrom((await response.json()) as { data?: AppleSongJson[]; results?: { songs?: { data?: AppleSongJson[] } } })
+}
+
 export function createAppleSearcher(fetchImpl: typeof fetch, developerToken: string, storefront = "us") {
   return async (hit: { title: string; artist: string; appleSongId?: string | null }): Promise<CatalogCandidate[]> => {
     const headers = appleHeaders(developerToken)

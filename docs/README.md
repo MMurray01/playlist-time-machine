@@ -26,7 +26,7 @@ The app builds a playlist with only the Supabase URL and anon key. **Save to App
 
 There is no Apple redirect URI. If the developer portal asks for a website domain, add the site host only.
 
-Matching uses the title and artist. A stored `apple_song_id` on `number_one_hits` is used when that column exists and the catalog recording still matches the title and artist. Songs Apple Music does not have are listed. A failed search is reported separately from a genuine miss.
+Matching uses the title and artist, including a second search with the main artist and a title-only search. Parentheses, featured credits, a leading “The”, and catalog extras such as remasters or a missing “Pt. 2” still count as the same song. A stored `apple_song_id` or `isrc` on the chart row is used when that column exists and the recording still matches. If Apple Music catalog search is unavailable, the public iTunes Search API supplies the cover and the 30-second preview. Empty lookups are not cached, so a failed search can be tried again. Songs that are still missing keep a monogram in place of the cover.
 
 The create call includes the first 100 catalog songs. Further songs go out in batches of 100 on the add-tracks call.
 

@@ -140,6 +140,25 @@ export function TimeMachine({
                 +
               </button>
             </div>
+            <div className="year-slider">
+              <input
+                type="range"
+                min={limits.min}
+                max={limits.max}
+                step={1}
+                value={yearNumber ?? limits.min}
+                aria-label="Graduation year"
+                aria-valuemin={limits.min}
+                aria-valuemax={limits.max}
+                aria-valuenow={yearNumber ?? limits.min}
+                aria-valuetext={yearNumber != null ? String(yearNumber) : "No year selected"}
+                onChange={(event) => setYear(event.target.value)}
+              />
+              <div className="year-ends">
+                <span>{limits.min}</span>
+                <span>{limits.max}</span>
+              </div>
+            </div>
             <p id="year-hint" className="hint year-hint">
               {windowHint}
             </p>

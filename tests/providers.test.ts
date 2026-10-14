@@ -12,6 +12,7 @@ import {
 import { catalogCacheKey, readCatalogCache, writeCatalogCache } from "@/lib/server/catalog-cache"
 import { signAppleDeveloperToken } from "@/lib/providers/apple-token"
 import { chunk } from "@/lib/providers/batch"
+import { createCatalogSearcher } from "@/lib/providers/catalog-search"
 import { chooseCatalogMatch } from "@/lib/playlist/match"
 import { matchHits } from "@/lib/providers/match-hits"
 
@@ -155,6 +156,9 @@ describe("Apple Music catalog matching", () => {
     writeCatalogCache(key, value, 1_000)
     expect(readCatalogCache(key, 1_000 + 1_000)).toEqual(value)
     expect(readCatalogCache(key, 1_000 + 6 * 60 * 60 * 1000)).toBeUndefined()
+    const emptyKey = catalogCacheKey({ title: "Missing", artist: "Nobody" })
+    writeCatalogCache(emptyKey, [], 1_000)
+    expect(readCatalogCache(emptyKey, 1_000)).toBeUndefined()
   })
 
   it("lists a catalog miss without failing the songs that matched", async () => {
@@ -167,6 +171,113 @@ describe("Apple Music catalog matching", () => {
     )
     expect(lookup.matches.map((match) => match.catalogId)).toEqual(["abc"])
     expect(lookup.unmatched[0]).toMatchObject({ key: "2", reason: "not_in_catalog" })
+  })
+})
+
+describe("catalog search fallbacks", () => {
+  it("keeps an Apple Music cover and adds the iTunes preview", async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input)
+      if (url.includes("api.music.apple.com")) {
+        return jsonResponse({
+          results: {
+            songs: {
+              data: [
+                {
+                  id: "55",
+                  attributes: {
+                    name: "Le Freak",
+                    artistName: "Chic",
+                    artwork: { url: "https://example.test/{w}x{h}bb.{f}" },
+                  },
+                },
+              ],
+            },
+          },
+        })
+      }
+      return jsonResponse({
+        results: [
+          {
+            trackId: 55,
+            trackName: "Le Freak",
+            artistName: "Chic",
+            artworkUrl100: "https://example.test/100x100bb.jpg",
+            previewUrl: "https://example.test/preview.m4a",
+            trackViewUrl: "https://music.apple.com/us/song/le-freak/55",
+          },
+        ],
+      })
+    }
+    const rows = await createCatalogSearcher(fetchImpl, { developerToken: "dev" })({
+      title: "Le Freak",
+      artist: "Chic",
+    })
+    const match = chooseCatalogMatch({ title: "Le Freak", artist: "Chic" }, rows)
+    expect(match?.id).toBe("55")
+    expect(match?.artworkUrl).toBe(`https://example.test/${ARTWORK_LIST_SIZE}x${ARTWORK_LIST_SIZE}bb.jpg`)
+    expect(match?.previewUrl).toBe("https://example.test/preview.m4a")
+  })
+
+  it("searches iTunes when Apple Music is not configured", async () => {
+    const urls: string[] = []
+    const fetchImpl: typeof fetch = async (input) => {
+      urls.push(String(input))
+      if (String(input).includes("attribute=isrc")) {
+        return jsonResponse({
+          results: [
+            {
+              trackId: 77,
+              trackName: "Le Freak",
+              artistName: "Chic",
+              artworkUrl100: "https://example.test/100x100bb.jpg",
+              previewUrl: "https://example.test/isrc.m4a",
+            },
+          ],
+        })
+      }
+      return jsonResponse({ results: [] })
+    }
+    const rows = await createCatalogSearcher(fetchImpl)({
+      title: "Le Freak",
+      artist: "Chic",
+      isrc: "USRC17607839",
+    })
+    expect(urls.some((url) => url.includes("api.music.apple.com"))).toBe(false)
+    expect(urls.some((url) => url.includes("attribute=isrc"))).toBe(true)
+    expect(chooseCatalogMatch({ title: "Le Freak", artist: "Chic" }, rows)?.previewUrl).toBe(
+      "https://example.test/isrc.m4a",
+    )
+  })
+
+  it("does not call iTunes after Apple Music already has a cover and a preview", async () => {
+    const urls: string[] = []
+    const fetchImpl: typeof fetch = async (input) => {
+      urls.push(String(input))
+      return jsonResponse({
+        results: {
+          songs: {
+            data: [
+              {
+                id: "55",
+                attributes: {
+                  name: "Le Freak",
+                  artistName: "Chic",
+                  artwork: { url: "https://example.test/{w}x{h}bb.{f}" },
+                  previews: [{ url: "https://example.test/preview.m4a" }],
+                },
+              },
+            ],
+          },
+        },
+      })
+    }
+    const rows = await createCatalogSearcher(fetchImpl, { developerToken: "dev" })({
+      title: "Le Freak",
+      artist: "Chic",
+    })
+    expect(rows[0]?.previewUrl).toBe("https://example.test/preview.m4a")
+    expect(urls.some((url) => url.includes("itunes.apple.com"))).toBe(false)
   })
 })
 

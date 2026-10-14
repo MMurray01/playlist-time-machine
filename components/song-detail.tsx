@@ -114,7 +114,13 @@ export function SongDetail({
           <img src={art} alt="" width={800} height={800} className="cover cover-detail" />
         ) : (
           <span aria-hidden="true" className="cover cover-detail cover-fallback">
-            {hit.title.slice(0, 1)}
+            {hit.title
+              .replace(/[^A-Za-z0-9 ]/g, " ")
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((word) => word[0]?.toUpperCase() ?? "")
+              .join("") || "1"}
           </span>
         )}
         <h2 id="song-detail-title">{hit.title}</h2>
