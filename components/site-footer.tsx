@@ -12,6 +12,11 @@ export function SiteFooter() {
         <span aria-hidden="true">·</span>
         <span>a product of abeba co</span>
       </nav>
+      <p className="attribution">
+        Billboard and Billboard Hot 100 are trademarks of Billboard Media, LLC. The dates and weeks on this site are
+        drawn from public lists of Hot 100 number ones. Playlist Time Machine is not affiliated with, endorsed by, or
+        sponsored by Billboard.
+      </p>
     </footer>
   )
 }

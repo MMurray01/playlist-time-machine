@@ -114,9 +114,7 @@ describe("chart order and genre filter", () => {
   it("drops songs outside the graduation window and keeps chart order", () => {
     const playlist = buildPlaylist({ graduationYear: 1984, genres: [], hits: songs })
     expect(playlist.hits.map((song) => song.title)).toEqual(["Le Freak", "Too Much Heaven", "I Will Survive"])
-    expect(playlist.years).toHaveLength(11)
-    expect(playlist.years[0]?.year).toBe(1979)
-    expect(playlist.years[10]?.year).toBe(1989)
+    expect(playlist.years.map((year) => year.year)).toEqual([1979])
   })
 
   it("returns every genre when none are selected and filters without changing order", () => {
@@ -190,9 +188,10 @@ describe("year stories", () => {
     expect(story.editorial).toBeNull()
     expect(story.facts.hitCount).toBe(3)
     expect(story.facts.longestRuns.map((run) => run.title)).toEqual(["B", "C"])
-    expect(story.summary).toContain("3 songs reached No. 1")
-    expect(story.summary).toContain("B by One and C by Two share the longest run, 4 weeks at No. 1")
-    expect(story.summary).toContain("One had the most No. 1s, with 2 No. 1s")
+    expect(story.summary).toContain("B by One and C by Two each hold No. 1 for 4 weeks")
+    expect(story.summary).toContain("the longest runs of the year")
+    expect(story.summary).toContain("The year opens with A by One.")
+    expect(story.summary).toContain("One has 2 No. 1s.")
   })
 
   it("keeps a later editorial note separate from the derived summary", () => {
@@ -204,6 +203,27 @@ describe("year stories", () => {
   it("says when a year has no No. 1s", () => {
     expect(deriveYearStory(1980, []).summary).toBe("1980 has no No. 1 hits in the chart library.")
   })
+
+  it("names the longest corrected run, not a shorter one", () => {
+    const story = deriveYearStory(1983, [
+      hit({
+        title: "Every Breath You Take",
+        artist: "The Police",
+        year: 1983,
+        weeksAtNumberOne: 8,
+        chartDate: "1983-07-09",
+      }),
+      hit({
+        title: "Tell Her About It",
+        artist: "Billy Joel",
+        year: 1983,
+        weeksAtNumberOne: 1,
+        chartDate: "1983-09-24",
+      }),
+    ])
+    expect(story.summary).toContain("Every Breath You Take by The Police holds No. 1 for 8 weeks")
+    expect(story.summary).not.toContain("Tell Her About It holds")
+  })
 })
 
 describe("class of 1984 chart library", () => {
@@ -211,6 +231,16 @@ describe("class of 1984 chart library", () => {
     readFileSync(path.join(process.cwd(), "tests/fixtures/class-of-1984.json"), "utf8"),
   ) as Record<string, unknown>[]
   const hits = rows.map((row) => mapHitRow(row)).filter((row): row is ChartHit => row != null)
+
+  it("hides years that have no songs", () => {
+    const playlist = buildPlaylist({
+      graduationYear: 1984,
+      genres: [],
+      hits: [hit({ title: "Call Me", artist: "Blondie", year: 1980, chartDate: "1980-04-19" })],
+    })
+    expect(playlist.years.map((year) => year.year)).toEqual([1980])
+    expect(playlist.hits).toHaveLength(1)
+  })
 
   it("builds the known 217-song playlist in chart order", () => {
     const playlist = buildPlaylist({ graduationYear: 1984, genres: [], hits: [...hits].reverse() })
@@ -245,8 +275,9 @@ describe("class of 1984 chart library", () => {
     expect(playlistText(playlist).match(/Le Freak/g)).toHaveLength(1)
     expect((playlistText(playlist).match(/^\S.*\(\d{4}\)$/gm) ?? []).length).toBe(0)
     expect(story?.facts.longestRuns[0]).toEqual({ title: "Rise", artist: "Herb Alpert", weeks: 7 })
-    expect(story?.summary).toContain("Rise by Herb Alpert")
-    expect(story?.summary).toContain("7 weeks at No. 1")
+    expect(story?.summary).toContain("Rise by Herb Alpert holds No. 1 for 7 weeks")
+    expect(story?.summary).toContain("the longest run of the year")
+    expect(story?.summary).toContain("The year opens with Le Freak by Chic.")
     expect(story?.editorial).toBeNull()
   })
 

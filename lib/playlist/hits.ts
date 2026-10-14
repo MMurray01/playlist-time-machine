@@ -123,6 +123,7 @@ export function buildPlaylist(input: {
 
   for (let year = window.startYear; year <= window.endYear; year += 1) {
     const yearHits = orderHits(hits.filter((hit) => hit.year === year))
+    if (yearHits.length === 0) continue
     years.push({
       year,
       hits: yearHits,

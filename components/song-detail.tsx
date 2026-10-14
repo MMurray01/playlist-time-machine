@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { AppleMusicBadge } from "@/components/apple-badge"
 import { loadMusicKit } from "@/components/musickit"
 import type { ChartHit, MatchedTrack } from "@/lib/playlist/types"
 
@@ -9,11 +10,13 @@ export function SongDetail({
   match,
   canPlayFull,
   onClose,
+  onPreview,
 }: {
   hit: ChartHit
   match: MatchedTrack | null | undefined
   canPlayFull: boolean
   onClose: () => void
+  onPreview?: () => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -58,6 +61,7 @@ export function SongDetail({
       return
     }
     try {
+      onPreview?.()
       await audio.play()
       setPlaying(true)
     } catch {
@@ -125,23 +129,19 @@ export function SongDetail({
         )}
         <h2 id="song-detail-title">{hit.title}</h2>
         <p className="quiet">{hit.artist}</p>
+      </div>
+      <div className="song-dialog-actions">
         {previewUrl ? (
           <>
-            <audio
-              ref={audioRef}
-              src={previewUrl}
-              preload="none"
-              onEnded={() => setPlaying(false)}
-            />
+            <audio ref={audioRef} src={previewUrl} preload="none" onEnded={() => setPlaying(false)} />
             <button type="button" className="btn btn-accent song-play" onClick={() => void togglePreview()}>
               {playing ? "Pause preview" : "Play 30-second preview"}
             </button>
           </>
         ) : (
-          <p className="quiet" style={{ marginTop: "1rem" }}>
-            {match === undefined ? "Looking up a preview." : "This song has no preview."}
-          </p>
+          <p className="quiet">{match === undefined ? "Looking up a preview." : "This song has no preview."}</p>
         )}
+        <AppleMusicBadge url={match?.url} title={hit.title} artist={hit.artist} />
         {canPlayFull && match?.catalogId ? (
           <button type="button" className="btn btn-ghost song-play" onClick={() => void playFull()}>
             Play the full song
@@ -151,11 +151,6 @@ export function SongDetail({
           <p className="quiet" role="status">
             {fullStatus}
           </p>
-        ) : null}
-        {match?.url ? (
-          <a className="linkish" href={match.url} target="_blank" rel="noopener noreferrer">
-            Open in Apple Music
-          </a>
         ) : null}
         <button type="button" className="btn btn-ghost song-play" onClick={onClose}>
           Close

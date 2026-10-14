@@ -43,6 +43,24 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/** Stay under the public iTunes Search limit of about 20 calls a minute. */
+const recentItunesCalls: number[] = []
+
+async function waitForItunesSlot(): Promise<void> {
+  for (;;) {
+    const now = Date.now()
+    while (recentItunesCalls.length > 0 && now - recentItunesCalls[0]! >= 60_000) {
+      recentItunesCalls.shift()
+    }
+    if (recentItunesCalls.length < 18) {
+      recentItunesCalls.push(now)
+      return
+    }
+    const oldest = recentItunesCalls[0] ?? now
+    await sleep(60_000 - (now - oldest) + 50)
+  }
+}
+
 export function createItunesSearcher(fetchImpl: typeof fetch, country = "us") {
   return async (input: { term: string; isrc?: boolean }): Promise<CatalogCandidate[]> => {
     const params = new URLSearchParams({
@@ -54,11 +72,12 @@ export function createItunesSearcher(fetchImpl: typeof fetch, country = "us") {
     if (input.isrc) params.set("attribute", "isrc")
     const url = `https://itunes.apple.com/search?${params.toString()}`
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await waitForItunesSlot()
       const response = await fetchImpl(url, { headers: { "User-Agent": "Mozilla/5.0" } })
       if (response.status === 429 || response.status === 403) {
-        if (attempt < 2) {
-          await sleep(400 * (attempt + 1))
+        if (attempt < 3) {
+          await sleep(1000 * 2 ** attempt)
           continue
         }
         throw new Error(`itunes_search_${response.status}`)

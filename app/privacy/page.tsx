@@ -63,7 +63,8 @@ export default function PrivacyPage() {
         <a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener noreferrer">
           apple.com/legal/privacy
         </a>
-        .
+        . We use Vercel Web Analytics to count page views. It does not receive your name, email, or graduation year,
+        and it is not used for advertising.
       </p>
       <h2>Children&apos;s privacy</h2>
       <p>

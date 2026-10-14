@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
+import { AppleMusicBadge } from "@/components/apple-badge"
 import { SongDetail } from "@/components/song-detail"
 import { downloadFilename, playlistCsv, playlistText } from "@/lib/playlist/export"
 import { hitKey } from "@/lib/playlist/hits"
@@ -126,6 +127,8 @@ function YearBlock({
   onVisible,
   onSelect,
   onBroken,
+  playingKey,
+  onTogglePlay,
 }: {
   chapter: YearChapter
   catalog: Record<string, MatchedTrack | null>
@@ -135,6 +138,8 @@ function YearBlock({
   onVisible: (hits: ChartHit[]) => void
   onSelect: (key: string) => void
   onBroken: (key: string) => void
+  playingKey: string | null
+  onTogglePlay: (hit: ChartHit) => void
 }) {
   const ref = useRef<HTMLElement>(null)
   const hits = chapter.hits
@@ -162,9 +167,9 @@ function YearBlock({
   return (
     <article ref={ref} id={`year-${chapter.year}`} className="year-block">
       <div className="year-heading">
-        <h3>
+        <h2>
           {chapter.year} · {chapter.hits.length} {chapter.hits.length === 1 ? "hit" : "hits"}
-        </h3>
+        </h2>
       </div>
       {browse === "covers" && chapter.hits.length > 0 ? (
         <div className="cover-row" role="list" aria-label={`${chapter.year} albums`}>
@@ -222,6 +227,25 @@ function YearBlock({
                     </span>
                   </span>
                 </button>
+                <div className="track-actions">
+                  <button
+                    type="button"
+                    className="track-play"
+                    aria-pressed={playingKey === key}
+                    disabled={!entry?.previewUrl}
+                    aria-label={
+                      entry?.previewUrl
+                        ? playingKey === key
+                          ? `Pause the preview of ${hit.title}`
+                          : `Play a preview of ${hit.title}`
+                        : `Preview of ${hit.title} is not ready`
+                    }
+                    onClick={() => onTogglePlay(hit)}
+                  >
+                    {playingKey === key ? "Pause" : "Play"}
+                  </button>
+                  <AppleMusicBadge url={entry?.url} title={hit.title} artist={hit.artist} />
+                </div>
               </li>
             )
           })}
@@ -256,6 +280,9 @@ export function PlaylistDocument({
   const [shareUrl, setShareUrl] = useState("")
   const [unmatched, setUnmatched] = useState<UnmatchedTrack[]>([])
   const [busy, setBusy] = useState(false)
+  const [playingKey, setPlayingKey] = useState<string | null>(null)
+  const [autoAdvance, setAutoAdvance] = useState(true)
+  const previewAudio = useRef<HTMLAudioElement>(null)
   const titleTag = mode === "shared" ? "h1" : "h2"
   const Title = titleTag
 
@@ -272,6 +299,8 @@ export function PlaylistDocument({
     setError("")
     setStatus("")
     setCanPlayFull(false)
+    setPlayingKey(null)
+    previewAudio.current?.pause()
   }, [playlist])
 
   function rememberLookup(result: LookupResult) {
@@ -515,8 +544,49 @@ export function PlaylistDocument({
 
   useEffect(() => {
     if (!selected) return
+    previewAudio.current?.pause()
+    setPlayingKey(null)
     void loadHits.current([selected])
   }, [selected])
+
+  function playPreview(hit: ChartHit) {
+    const key = hitKey(hit)
+    const preview = catalogRef.current[key]?.previewUrl
+    const audio = previewAudio.current
+    if (!preview || !audio) return
+    if (playingKey === key && !audio.paused) {
+      audio.pause()
+      setPlayingKey(null)
+      return
+    }
+    audio.src = preview
+    void audio.play().then(
+      () => setPlayingKey(key),
+      () => setPlayingKey(null),
+    )
+  }
+
+  function advancePreview() {
+    if (!autoAdvance || !playingKey) {
+      setPlayingKey(null)
+      return
+    }
+    const index = playlist.hits.findIndex((hit) => hitKey(hit) === playingKey)
+    for (let next = index + 1; next < playlist.hits.length; next += 1) {
+      const hit = playlist.hits[next]
+      if (!hit) continue
+      const preview = catalogRef.current[hitKey(hit)]?.previewUrl
+      const audio = previewAudio.current
+      if (!preview || !audio) continue
+      audio.src = preview
+      void audio.play().then(
+        () => setPlayingKey(hitKey(hit)),
+        () => setPlayingKey(null),
+      )
+      return
+    }
+    setPlayingKey(null)
+  }
 
   return (
     <section id="playlist" aria-labelledby="playlist-title" className="results">
@@ -637,7 +707,11 @@ export function PlaylistDocument({
         <button type="button" aria-pressed={browse === "covers"} onClick={() => setBrowse("covers")}>
           Covers
         </button>
+        <button type="button" aria-pressed={autoAdvance} onClick={() => setAutoAdvance((current) => !current)}>
+          {autoAdvance ? "Next preview: on" : "Next preview: off"}
+        </button>
       </div>
+      <audio ref={previewAudio} preload="none" onEnded={advancePreview} />
 
       <div>
         {playlist.years.map((chapter) => (
@@ -651,6 +725,8 @@ export function PlaylistDocument({
             onVisible={onVisible.current}
             onSelect={setSelectedKey}
             onBroken={(key) => setBrokenArt((current) => ({ ...current, [key]: true }))}
+            playingKey={playingKey}
+            onTogglePlay={playPreview}
           />
         ))}
       </div>
@@ -662,6 +738,10 @@ export function PlaylistDocument({
           match={selectedKey ? catalog[selectedKey] : undefined}
           canPlayFull={canPlayFull}
           onClose={() => setSelectedKey(null)}
+          onPreview={() => {
+            previewAudio.current?.pause()
+            setPlayingKey(null)
+          }}
         />
       ) : null}
     </section>

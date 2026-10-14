@@ -6,7 +6,11 @@ const TRANSFER_URL = "https://support.apple.com/en-us/118249"
 export function FromSpotify({ compact = false }: { compact?: boolean }) {
   return (
     <section className="switch" aria-labelledby="from-spotify-title">
-      <h2 id="from-spotify-title">Coming from Spotify?</h2>
+      {compact ? (
+        <h2 id="from-spotify-title">Coming from Spotify?</h2>
+      ) : (
+        <h1 id="from-spotify-title">Coming from Spotify?</h1>
+      )}
       {compact ? (
         <p>
           This playlist saves to Apple Music in one tap. New subscribers can start a trial on Apple’s subscribe page.

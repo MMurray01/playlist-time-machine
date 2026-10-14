@@ -111,7 +111,7 @@ export function TimeMachine({
           <h1>Rediscover the soundtrack of your life</h1>
           <p className="lede">
             Your first dance, graduation, those long summer nights. Enter your high school graduation year and get
-            every Billboard #1 from the decade that shaped you.
+            every Billboard #1 from the eleven years that shaped you.
           </p>
         </header>
 
