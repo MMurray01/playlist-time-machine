@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-Copy `.env.example` to `.env.local` and set the Supabase URL, anon key, and Spotify client id. That is enough to run the site and save to Spotify. Album art before sign-in also needs `SPOTIFY_CLIENT_SECRET`. Apple Music stays hidden until its three variables are set. Share links need `SUPABASE_SERVICE_ROLE_KEY`. Vercel setup is in [docs/DEPLOY.md](docs/DEPLOY.md).
+Copy `.env.example` to `.env.local`. The Supabase URL and anon key are enough to build a playlist. Saving to Apple Music also needs `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and `APPLE_PRIVATE_KEY`. Share links need `SUPABASE_SERVICE_ROLE_KEY`. Vercel setup is in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ```bash
 pnpm test
@@ -24,13 +24,13 @@ Enter a graduation year. Class of 1984 covers 1979 through 1989: 217 No. 1s, sta
 
 Each year has a short note built from the chart rows: how many songs reached No. 1, which songs are listed with the most weeks at No. 1, and which artists had the most No. 1s. `lib/playlist/editorial.ts` is where a later hand-written note can sit beside those facts.
 
-Save the playlist to Spotify or Apple Music. Songs are added in batches (100 at a time, which is as many as those APIs accept in one call), not one song at a time. The page reports how many songs each catalog had and lists the ones it did not.
+Save the playlist to Apple Music in one tap. Songs are added in batches of 100. The page reports how many songs matched and lists the ones Apple Music did not have. People coming from another service can open `/from-spotify`.
 
 Share creates a public page at `/p/[id]` with the same year notes and save buttons.
 
 ## Data
 
-Songs come from the `number_one_hits` table. See [docs/README.md](docs/README.md) for Spotify, Apple Music, and the database migration.
+Songs come from the `number_one_hits` view. See [docs/README.md](docs/README.md) for Apple Music and the database migration.
 
 ## Database migration
 

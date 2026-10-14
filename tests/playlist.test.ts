@@ -27,7 +27,7 @@ function hit(overrides: Partial<ChartHit> & Pick<ChartHit, "title" | "artist" | 
     title: overrides.title,
     artist: overrides.artist,
     genre: overrides.genre ?? "Pop",
-    spotifyTrackId: overrides.spotifyTrackId ?? null,
+    appleSongId: overrides.appleSongId ?? null,
     weeksAtNumberOne: overrides.weeksAtNumberOne ?? null,
   }
 }
@@ -132,7 +132,26 @@ describe("chart order and genre filter", () => {
       spotify_track_id: null,
       weeks_at_position: "6",
     })
-    expect(mapped).toMatchObject({ songId: 92, weekNumber: 49, weeksAtNumberOne: 6, artist: "Chic" })
+    expect(mapped).toMatchObject({ songId: 92, weekNumber: 49, weeksAtNumberOne: 6, artist: "Chic", appleSongId: null })
+  })
+
+  it("keeps an Apple song id when the row has one", () => {
+    const mapped = mapHitRow({
+      song_id: 92,
+      year: 1979,
+      title: "Le Freak",
+      artist_name: "Chic",
+      apple_song_id: "1234567890",
+    })
+    expect(mapped?.appleSongId).toBe("1234567890")
+    const ignored = mapHitRow({
+      song_id: 92,
+      year: 1979,
+      title: "Le Freak",
+      artist_name: "Chic",
+      apple_song_id: "not-an-id",
+    })
+    expect(ignored?.appleSongId).toBeNull()
   })
 })
 

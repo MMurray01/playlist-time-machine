@@ -6,7 +6,7 @@ import { graduationWindow, isValidGraduationYear } from "@/lib/playlist/window"
 import { createReadClient } from "@/lib/server/supabase"
 
 const HIT_COLUMNS =
-  "song_id, year, week_number, chart_date, title, artist_name, genre, spotify_track_id, weeks_at_position"
+  "song_id, year, week_number, chart_date, title, artist_name, genre, weeks_at_position"
 
 export async function listChartGenres(): Promise<{
   genres: string[]

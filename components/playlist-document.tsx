@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
 import { hitKey } from "@/lib/playlist/hits"
@@ -14,10 +14,8 @@ type LookupResult = {
   needsAuth?: boolean
 }
 
-async function lookupProvider(
-  provider: "spotify" | "apple",
+async function lookupApple(
   playlist: BuiltPlaylist,
-  intent: "preview" | "save",
   onChunk?: (done: number, total: number) => void,
 ): Promise<LookupResult> {
   const matches: MatchedTrack[] = []
@@ -29,13 +27,11 @@ async function lookupProvider(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        provider,
-        intent,
         tracks: slice.map((hit) => ({
           key: hitKey(hit),
           title: hit.title,
           artist: hit.artist,
-          spotifyTrackId: hit.spotifyTrackId,
+          appleSongId: hit.appleSongId,
         })),
       }),
     })
@@ -95,14 +91,10 @@ export function PlaylistDocument({
   playlist,
   providers,
   mode,
-  autoSaveSpotify = false,
-  onAutoSaveConsumed,
 }: {
   playlist: BuiltPlaylist
   providers: ProviderAvailability
   mode: "builder" | "shared"
-  autoSaveSpotify?: boolean
-  onAutoSaveConsumed?: () => void
 }) {
   const [name, setName] = useState(playlist.title)
   const [artwork, setArtwork] = useState<Record<string, string>>({})
@@ -114,7 +106,6 @@ export function PlaylistDocument({
   const [unmatched, setUnmatched] = useState<UnmatchedTrack[]>([])
   const [busy, setBusy] = useState(false)
   const [coverNote, setCoverNote] = useState("")
-  const autoSaveStarted = useRef(false)
   const titleTag = mode === "shared" ? "h1" : "h2"
   const Title = titleTag
 
@@ -130,11 +121,10 @@ export function PlaylistDocument({
   }, [playlist])
 
   useEffect(() => {
-    const provider = providers.spotifyCatalog ? "spotify" : providers.apple ? "apple" : null
-    if (!provider) return
+    if (!providers.apple) return
     let cancelled = false
-    setCoverNote(provider === "spotify" ? "Adding album covers from Spotify." : "Adding album covers from Apple Music.")
-    void lookupProvider(provider, playlist, "preview", (done, total) => {
+    setCoverNote("Adding album covers from Apple Music.")
+    void lookupApple(playlist, (done, total) => {
       if (!cancelled) setCoverNote(`Adding album covers, ${done} of ${total}.`)
     })
       .then((result) => {
@@ -154,83 +144,7 @@ export function PlaylistDocument({
     return () => {
       cancelled = true
     }
-  }, [playlist, providers.apple, providers.spotifyCatalog])
-
-  async function saveSpotify() {
-    if (busy) return
-    setBusy(true)
-    setError("")
-    setStatus("Checking Spotify for these songs.")
-    setUnmatched([])
-    try {
-      const lookup = await lookupProvider("spotify", playlist, "save", (done, total) => {
-        setStatus(`Checking Spotify, ${done} of ${total}.`)
-      })
-      if (lookup.needsAuth) {
-        sessionStorage.setItem(
-          "ptm-draft",
-          JSON.stringify({ playlist, year: String(playlist.graduationYear), genres: playlist.genres }),
-        )
-        window.location.href = "/api/spotify/login?next=/"
-        return
-      }
-      const art: Record<string, string> = {}
-      for (const match of lookup.matches) {
-        if (match.artworkUrl) art[match.key] = match.artworkUrl
-      }
-      setArtwork((current) => ({ ...current, ...art }))
-      setUnmatched(lookup.unmatched)
-      if (lookup.matches.length === 0) {
-        setStatus("")
-        setError("None of these songs were found on Spotify.")
-        setBusy(false)
-        return
-      }
-      setStatus(`Saving ${lookup.matches.length} songs to Spotify.`)
-      const response = await fetch("/api/spotify/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          description: playlistDescription(playlist.startYear, playlist.endYear),
-          trackIds: lookup.matches.map((match) => match.catalogId),
-        }),
-      })
-      const body = (await response.json()) as {
-        ok?: boolean
-        error?: string
-        playlistUrl?: string | null
-        addedCount?: number
-        requestedCount?: number
-      }
-      if (response.status === 401) {
-        sessionStorage.setItem(
-          "ptm-draft",
-          JSON.stringify({ playlist, year: String(playlist.graduationYear), genres: playlist.genres }),
-        )
-        window.location.href = "/api/spotify/login?next=/"
-        return
-      }
-      if (!response.ok || !body.ok) {
-        setError(body.error || "Spotify could not save the playlist.")
-        setStatus(
-          typeof body.addedCount === "number"
-            ? `Spotify kept ${body.addedCount} of ${body.requestedCount ?? lookup.matches.length} songs.`
-            : "",
-        )
-      } else {
-        setPlaylistUrl(body.playlistUrl || "")
-        setStatus(
-          `Saved ${body.addedCount ?? lookup.matches.length} of ${playlist.hits.length} songs to a private Spotify playlist.`,
-        )
-      }
-    } catch {
-      setError("Spotify could not be reached. Try again.")
-      setStatus("")
-    } finally {
-      setBusy(false)
-    }
-  }
+  }, [playlist, providers.apple])
 
   async function saveApple() {
     if (busy) return
@@ -239,7 +153,7 @@ export function PlaylistDocument({
     setStatus("Checking Apple Music for these songs.")
     setUnmatched([])
     try {
-      const lookup = await lookupProvider("apple", playlist, "save", (done, total) => {
+      const lookup = await lookupApple(playlist, (done, total) => {
         setStatus(`Checking Apple Music, ${done} of ${total}.`)
       })
       const art: Record<string, string> = {}
@@ -249,13 +163,18 @@ export function PlaylistDocument({
       setArtwork((current) => ({ ...current, ...art }))
       setUnmatched(lookup.unmatched)
       if (lookup.skipped) {
-        setError("Apple Music is not set up on this site.")
+        setError("Apple Music is not set up on this site yet.")
         setStatus("")
         setBusy(false)
         return
       }
+      const missed = lookup.unmatched.filter((song) => song.reason === "not_in_catalog")
       if (lookup.matches.length === 0) {
-        setError("None of these songs were found on Apple Music.")
+        setError(
+          missed.length > 0
+            ? "Apple Music didn’t have these songs, so nothing was saved."
+            : "Apple Music could not be checked. Try again.",
+        )
         setStatus("")
         setBusy(false)
         return
@@ -263,7 +182,11 @@ export function PlaylistDocument({
       setStatus("Opening Apple Music so you can approve the playlist.")
       const tokenResponse = await fetch("/api/apple/token")
       if (!tokenResponse.ok) {
-        setError("Apple Music is not available right now.")
+        setError(
+          tokenResponse.status === 404
+            ? "Apple Music is not set up on this site yet."
+            : "Apple Music is not available right now.",
+        )
         setStatus("")
         setBusy(false)
         return
@@ -306,7 +229,12 @@ export function PlaylistDocument({
         )
       } else {
         setPlaylistUrl(body.playlistUrl || "")
-        setStatus(`Saved ${body.addedCount ?? lookup.matches.length} of ${playlist.hits.length} songs to Apple Music.`)
+        const saved = body.addedCount ?? lookup.matches.length
+        const missingNote =
+          missed.length > 0
+            ? ` ${missed.length} ${missed.length === 1 ? "song was" : "songs were"} not in Apple Music.`
+            : ""
+        setStatus(`Saved ${saved} of ${playlist.hits.length} songs to Apple Music.${missingNote}`)
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : ""
@@ -320,15 +248,6 @@ export function PlaylistDocument({
       setBusy(false)
     }
   }
-
-  useEffect(() => {
-    if (!autoSaveSpotify || autoSaveStarted.current) return
-    autoSaveStarted.current = true
-    onAutoSaveConsumed?.()
-    void saveSpotify()
-    // The resume flag should start one save after Spotify returns.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSaveSpotify])
 
   async function share() {
     setError("")
@@ -376,7 +295,6 @@ export function PlaylistDocument({
   const failedLabel = unmatched.filter((song) => song.reason === "search_failed")
 
   const opening = playlist.hits.slice(0, 3)
-  const actionClass = providers.apple ? "actions actions-split" : "actions"
 
   return (
     <section id="playlist" aria-labelledby="playlist-title" className="results">
@@ -404,30 +322,19 @@ export function PlaylistDocument({
         </div>
       ) : null}
 
-      <div className={actionClass}>
+      <div className="actions">
         <button
           type="button"
-          onClick={() => void saveSpotify()}
-          disabled={busy || !providers.spotify || playlist.hits.length === 0}
-          className="btn btn-ink"
+          onClick={() => void saveApple()}
+          disabled={busy || playlist.hits.length === 0}
+          className="btn btn-accent"
         >
-          Save to Spotify
+          Save to Apple Music
         </button>
-        {providers.apple ? (
-          <button
-            type="button"
-            onClick={() => void saveApple()}
-            disabled={busy || playlist.hits.length === 0}
-            className="btn btn-ink"
-          >
-            Save to Apple Music
-          </button>
-        ) : null}
         <button type="button" onClick={() => void share()} disabled={busy || playlist.hits.length === 0} className="btn btn-ghost">
           Share
         </button>
       </div>
-      {!providers.spotify ? <p className="quiet" style={{ marginTop: "0.7rem" }}>Spotify is not set up on this site yet.</p> : null}
 
       <p role="status" aria-live="polite" className="quiet" style={{ marginTop: "0.85rem" }}>
         {coverNote || status}

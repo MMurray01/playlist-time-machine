@@ -1,18 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
-import { useSearchParams } from "next/navigation"
 import { generatePlaylistAction } from "@/actions/playlist-actions"
+import { FromSpotify } from "@/components/from-spotify"
 import { PlaylistDocument } from "@/components/playlist-document"
 import type { BuiltPlaylist, ProviderAvailability } from "@/lib/playlist/types"
 import { graduationWindow, isValidGraduationYear, MAX_GRADUATION_YEAR, MIN_GRADUATION_YEAR } from "@/lib/playlist/window"
-
-const NOTICES: Record<string, string> = {
-  spotify_denied: "Spotify sign-in was canceled.",
-  spotify_expired: "Spotify sign-in expired. Try saving again.",
-  spotify_failed: "Spotify sign-in did not finish. Try again.",
-  spotify_unconfigured: "Spotify is not set up on this site yet.",
-}
 
 function parseYear(value: string): number | null {
   if (!/^\d{4}$/.test(value)) return null
@@ -29,14 +22,11 @@ export function TimeMachine({
   providers: ProviderAvailability
   libraryError: string | null
 }) {
-  const searchParams = useSearchParams()
   const [year, setYear] = useState("")
   const [selected, setSelected] = useState<string[]>([])
   const [playlist, setPlaylist] = useState<BuiltPlaylist | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(libraryError ?? "")
-  const [notice, setNotice] = useState("")
-  const [autoSaveSpotify, setAutoSaveSpotify] = useState(false)
   const pendingScroll = useRef(false)
 
   const yearNumber = parseYear(year)
@@ -45,8 +35,6 @@ export function TimeMachine({
     : `Use a year from ${MIN_GRADUATION_YEAR} through ${MAX_GRADUATION_YEAR}.`
 
   useEffect(() => {
-    const code = searchParams.get("notice")
-    if (code && NOTICES[code]) setNotice(NOTICES[code])
     const raw = sessionStorage.getItem("ptm-draft")
     if (!raw) return
     try {
@@ -54,11 +42,10 @@ export function TimeMachine({
       if (draft.playlist) setPlaylist(draft.playlist)
       if (typeof draft.year === "string") setYear(draft.year)
       if (Array.isArray(draft.genres)) setSelected(draft.genres.filter((genre) => typeof genre === "string"))
-      if (searchParams.get("resume") === "spotify") setAutoSaveSpotify(true)
     } catch {
       sessionStorage.removeItem("ptm-draft")
     }
-  }, [searchParams])
+  }, [])
 
   function step(delta: number) {
     const base = yearNumber ?? 1984
@@ -82,7 +69,6 @@ export function TimeMachine({
     }
     setLoading(true)
     setError("")
-    setNotice("")
     try {
       const result = await generatePlaylistAction(yearNumber, selected)
       if (!result.ok) {
@@ -131,7 +117,6 @@ export function TimeMachine({
                 className="year-input"
                 inputMode="numeric"
                 autoComplete="off"
-                placeholder="1984"
                 aria-describedby="year-hint"
                 value={year}
                 onChange={(event) => setYear(event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
@@ -176,18 +161,13 @@ export function TimeMachine({
             </fieldset>
           ) : null}
 
-          {notice ? (
-            <p role="status" className="note">
-              {notice}
-            </p>
-          ) : null}
           {error ? (
             <p role="alert" className="alert">
               {error}
             </p>
           ) : null}
 
-          <button type="submit" disabled={loading || !yearNumber || Boolean(libraryError)} className="btn btn-accent">
+          <button type="submit" disabled={loading || !yearNumber || Boolean(libraryError)} className="btn btn-accent btn-block">
             {loading ? "Building the playlist" : "Build my playlist"}
           </button>
           {loading ? (
@@ -203,21 +183,9 @@ export function TimeMachine({
           ) : null}
         </form>
 
-        {playlist ? (
-          <PlaylistDocument
-            playlist={playlist}
-            providers={providers}
-            mode="builder"
-            autoSaveSpotify={autoSaveSpotify}
-            onAutoSaveConsumed={() => {
-              setAutoSaveSpotify(false)
-              const url = new URL(window.location.href)
-              url.searchParams.delete("resume")
-              url.searchParams.delete("notice")
-              window.history.replaceState(null, "", url.pathname)
-            }}
-          />
-        ) : null}
+        <FromSpotify compact />
+
+        {playlist ? <PlaylistDocument playlist={playlist} providers={providers} mode="builder" /> : null}
       </main>
     </>
   )

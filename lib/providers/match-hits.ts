@@ -5,31 +5,18 @@ import type { CatalogCandidate, MatchedTrack, MatchTrack, UnmatchedTrack } from 
 export interface CatalogLookup {
   matches: MatchedTrack[]
   unmatched: UnmatchedTrack[]
-  unauthorized: boolean
 }
 
 export async function matchHits(
   hits: MatchTrack[],
   search: (hit: MatchTrack) => Promise<CatalogCandidate[]>,
-  options?: { concurrency?: number; trustStoredId?: boolean },
+  options?: { concurrency?: number },
 ): Promise<CatalogLookup> {
-  let unauthorized = false
   const rows = await mapPool(hits, options?.concurrency ?? 4, async (hit) => {
-    if (unauthorized) {
-      return { hit, candidate: null as CatalogCandidate | null, failed: true }
-    }
     try {
       const candidates = await search(hit)
-      const stored =
-        options?.trustStoredId && hit.spotifyTrackId
-          ? candidates.find((candidate) => candidate.id === hit.spotifyTrackId) ?? null
-          : null
-      const candidate = stored ?? chooseCatalogMatch(hit, candidates)
-      return { hit, candidate, failed: false }
-    } catch (error) {
-      if (error instanceof Error && error.message === "spotify_unauthorized") {
-        unauthorized = true
-      }
+      return { hit, candidate: chooseCatalogMatch(hit, candidates), failed: false }
+    } catch {
       return { hit, candidate: null as CatalogCandidate | null, failed: true }
     }
   })
@@ -56,5 +43,5 @@ export async function matchHits(
     }
   }
 
-  return { matches, unmatched, unauthorized }
+  return { matches, unmatched }
 }

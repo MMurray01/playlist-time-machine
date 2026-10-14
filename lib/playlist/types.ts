@@ -6,7 +6,8 @@ export interface ChartHit {
   title: string
   artist: string
   genre: string
-  spotifyTrackId: string | null
+  /** Apple Music catalog song id, when the chart row has one. */
+  appleSongId: string | null
   weeksAtNumberOne: number | null
 }
 
@@ -70,7 +71,7 @@ export interface MatchTrack {
   key: string
   title: string
   artist: string
-  spotifyTrackId?: string | null
+  appleSongId?: string | null
 }
 
 export interface MatchedTrack {
@@ -100,7 +101,5 @@ export interface PlaylistCreateResult {
 }
 
 export interface ProviderAvailability {
-  spotify: boolean
   apple: boolean
-  spotifyCatalog: boolean
 }
