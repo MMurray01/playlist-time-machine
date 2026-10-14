@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Inter } from "next/font/google"
 import { SiteFooter } from "@/components/site-footer"
 import { tokens } from "@/lib/playlist/tokens"
+import { SITE_URL, siteMetadata } from "@/lib/site/metadata"
 import "./globals.css"
 
 const sans = Inter({
@@ -28,9 +29,13 @@ const theme = {
 } as CSSProperties
 
 export const metadata: Metadata = {
-  title: "Playlist Time Machine",
-  description:
-    "Enter your high school graduation year and get the number one hits from the eleven years that shaped you, the popular songs of the time.",
+  metadataBase: new URL(SITE_URL),
+  ...siteMetadata({
+    title: "Playlist Time Machine",
+    description:
+      "Enter your high school graduation year and get the number one hits from the eleven years that shaped you, the popular songs of the time.",
+    path: "/",
+  }),
 }
 
 export default function RootLayout({

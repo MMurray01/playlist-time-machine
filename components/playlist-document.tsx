@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react"
+import { useEffect, useRef, useState } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
 import { AppleMusicBadge } from "@/components/apple-badge"
+import { CoverFlow } from "@/components/cover-flow"
 import { SongDetail } from "@/components/song-detail"
+import { readResultsView, writeResultsView, type ResultsView } from "@/lib/playlist/browse"
 import { downloadFilename, playlistCsv, playlistText } from "@/lib/playlist/export"
 import { hitKey } from "@/lib/playlist/hits"
 import type {
@@ -112,22 +114,12 @@ function Cover({
   )
 }
 
-function focusSibling(event: KeyboardEvent<HTMLButtonElement>) {
-  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return
-  const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")
-  if (!buttons) return
-  const index = [...buttons].indexOf(event.currentTarget)
-  const next = event.key === "ArrowRight" ? buttons[index + 1] : buttons[index - 1]
-  if (!next) return
-  event.preventDefault()
-  next.focus()
-}
-
 function YearBlock({
   chapter,
   catalog,
   brokenArt,
-  browse,
+  songs,
+  flow,
   eager,
   onVisible,
   onSelect,
@@ -140,7 +132,8 @@ function YearBlock({
   chapter: YearChapter
   catalog: Record<string, MatchedTrack | null>
   brokenArt: Record<string, true>
-  browse: "list" | "covers"
+  songs: boolean
+  flow: boolean
   eager: boolean
   onVisible: (hits: ChartHit[]) => void
   onSelect: (key: string) => void
@@ -152,25 +145,39 @@ function YearBlock({
 }) {
   const ref = useRef<HTMLElement>(null)
   const hits = chapter.hits
+  const [shown, setShown] = useState(eager)
 
   useEffect(() => {
     const node = ref.current
     if (!node || hits.length === 0) return
-    if (typeof IntersectionObserver === "undefined") {
+    let active = true
+    let done = false
+    const finish = () => {
+      if (!active || done) return
+      done = true
       onVisible(hits)
-      return
+      setShown(true)
+      window.removeEventListener("scroll", consider)
+      window.removeEventListener("resize", consider)
     }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          onVisible(hits)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: "480px 0px" },
-    )
-    observer.observe(node)
-    return () => observer.disconnect()
+    const consider = () => {
+      if (!active || done) return
+      const rect = node.getBoundingClientRect()
+      // Anything already above the fold has been scrolled to, including rows a
+      // fast jump would skip past an IntersectionObserver root margin.
+      if (rect.top >= window.innerHeight + 800) return
+      finish()
+    }
+    consider()
+    if (!done) {
+      window.addEventListener("scroll", consider, { passive: true })
+      window.addEventListener("resize", consider)
+    }
+    return () => {
+      active = false
+      window.removeEventListener("scroll", consider)
+      window.removeEventListener("resize", consider)
+    }
   }, [hits, onVisible])
 
   return (
@@ -180,38 +187,24 @@ function YearBlock({
           {chapter.year} · {chapter.hits.length} {chapter.hits.length === 1 ? "hit" : "hits"}
         </h2>
       </div>
-      {browse === "covers" && chapter.hits.length > 0 ? (
-        <div className="cover-row" role="list" aria-label={`${chapter.year} albums`}>
-          {chapter.hits.map((hit) => {
-            const key = hitKey(hit)
-            const entry = catalog[key]
-            return (
-              <button
-                key={key}
-                type="button"
-                role="listitem"
-                className="cover-card"
-                onClick={() => onSelect(key)}
-                onKeyDown={focusSibling}
-              >
-                <Cover
-                  hit={hit}
-                  art={entry?.artworkUrl ?? undefined}
-                  pending={entry === undefined}
-                  broken={Boolean(brokenArt[key])}
-                  eager={eager}
-                  onError={() => onBroken(key)}
-                />
-                <span className="track-title">{hit.title}</span>
-                <span className="track-meta">{hit.artist}</span>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
       {chapter.story.editorial ? <p className="story">{chapter.story.editorial}</p> : null}
       <p className="story">{chapter.story.summary}</p>
-      {chapter.hits.length === 0 || browse === "covers" ? null : (
+      {flow && shown && chapter.hits.length > 0 ? (
+        <CoverFlow
+          year={chapter.year}
+          hits={chapter.hits}
+          catalog={catalog}
+          brokenArt={brokenArt}
+          playingKey={playingKey}
+          onTogglePlay={onTogglePlay}
+          onBroken={onBroken}
+          onNeed={onVisible}
+          affiliateToken={affiliateToken}
+          placement={badgePlacement}
+          priority={eager}
+        />
+      ) : null}
+      {songs && chapter.hits.length > 0 ? (
         <ol className="tracks">
           {chapter.hits.map((hit) => {
             const key = hitKey(hit)
@@ -219,7 +212,12 @@ function YearBlock({
             const weeks = weeksLabel(hit.weeksAtNumberOne)
             return (
               <li key={key} className="track">
-                <button type="button" className="track-button" onClick={() => onSelect(key)}>
+                <button
+                  type="button"
+                  className="track-cover-btn"
+                  aria-label={`Open ${hit.title} by ${hit.artist}`}
+                  onClick={() => onSelect(key)}
+                >
                   <Cover
                     hit={hit}
                     art={entry?.artworkUrl ?? undefined}
@@ -228,42 +226,40 @@ function YearBlock({
                     eager={eager}
                     onError={() => onBroken(key)}
                   />
-                  <span className="track-copy">
+                </button>
+                <div className="track-main">
+                  <button type="button" className="track-copy" onClick={() => onSelect(key)}>
                     <span className="track-title">{hit.title}</span>
                     <span className="track-meta">
                       {hit.artist}
                       {weeks ? ` · ${weeks}` : ""}
                     </span>
-                  </span>
-                </button>
-                <div className="track-actions">
+                  </button>
                   <button
                     type="button"
                     className="track-play"
                     aria-pressed={playingKey === key}
                     disabled={!entry?.previewUrl}
                     aria-label={
-                      playingKey === key
-                        ? `Pause preview of ${hit.title}`
-                        : `Play preview of ${hit.title}`
+                      playingKey === key ? `Pause preview of ${hit.title}` : `Play preview of ${hit.title}`
                     }
                     onClick={() => onTogglePlay(hit)}
                   >
                     {playingKey === key ? "Pause" : "Play"}
                   </button>
-                  <AppleMusicBadge
-                    url={entry?.url}
-                    title={hit.title}
-                    artist={hit.artist}
-                    placement={badgePlacement}
-                    affiliateToken={affiliateToken}
-                  />
                 </div>
+                <AppleMusicBadge
+                  url={entry?.url}
+                  title={hit.title}
+                  artist={hit.artist}
+                  placement={badgePlacement}
+                  affiliateToken={affiliateToken}
+                />
               </li>
             )
           })}
         </ol>
-      )}
+      ) : null}
     </article>
   )
 }
@@ -285,7 +281,7 @@ export function PlaylistDocument({
   const [catalog, setCatalog] = useState<Record<string, MatchedTrack | null>>({})
   const [brokenArt, setBrokenArt] = useState<Record<string, true>>({})
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [browse, setBrowse] = useState<"list" | "covers">("list")
+  const [browse, setBrowse] = useState<ResultsView>("flow")
   const [canPlayFull, setCanPlayFull] = useState(false)
   const requested = useRef(new Set<string>())
   const generation = useRef(0)
@@ -328,6 +324,15 @@ export function PlaylistDocument({
     }
     previewAudio.current?.pause()
   }, [playlist])
+
+  useEffect(() => {
+    setBrowse(readResultsView(window.localStorage))
+  }, [])
+
+  function chooseView(view: ResultsView) {
+    setBrowse(view)
+    writeResultsView(window.localStorage, view)
+  }
 
   useEffect(() => {
     if (!collageOpen || CollageView) return
@@ -602,7 +607,7 @@ export function PlaylistDocument({
   const eagerYears = new Set(
     playlist.years
       .filter((chapter) => chapter.hits.length > 0)
-      .slice(0, 3)
+      .slice(0, 1)
       .map((chapter) => chapter.year),
   )
 
@@ -668,6 +673,45 @@ export function PlaylistDocument({
         <p className="summary">Every number one hit, in the order they reached the top.</p>
       </div>
 
+      <button
+        ref={collageLinkRef}
+        type="button"
+        className="collage-cta"
+        data-collage-link
+        disabled={playlist.hits.length === 0}
+        onClick={() => {
+          performance.mark("collage-open")
+          setCollageOpen(true)
+        }}
+      >
+        <span className="collage-cta-mosaic" aria-hidden="true">
+          {playlist.hits.slice(0, 4).map((hit) => {
+            const key = hitKey(hit)
+            const entry = catalog[key]
+            return (
+              <Cover
+                key={key}
+                hit={hit}
+                art={entry?.artworkUrl ?? undefined}
+                pending={entry === undefined}
+                broken={Boolean(brokenArt[key])}
+                eager
+                onError={() => setBrokenArt((current) => ({ ...current, [key]: true }))}
+              />
+            )
+          })}
+        </span>
+        <span className="collage-cta-copy">
+          <span className="collage-cta-title">Make your cover collage</span>
+          <span className="collage-cta-detail">A free square or phone wallpaper made from these album covers.</span>
+        </span>
+      </button>
+      {collageOpen && !CollageView ? (
+        <p role="status" className="quiet">
+          Opening the collage.
+        </p>
+      ) : null}
+
       {mode === "builder" ? (
         <div style={{ marginTop: "1.5rem" }}>
           <label htmlFor="playlist-name" className="field-label">
@@ -715,27 +759,6 @@ export function PlaylistDocument({
           CSV
         </button>
       </div>
-      <p className="collage-offer">
-        <button
-          ref={collageLinkRef}
-          type="button"
-          className="linkish"
-          data-collage-link
-          disabled={playlist.hits.length === 0}
-          onClick={() => {
-            performance.mark("collage-open")
-            setCollageOpen(true)
-          }}
-        >
-          Make a cover collage
-        </button>
-      </p>
-      {collageOpen && !CollageView ? (
-        <p role="status" className="quiet">
-          Opening the collage.
-        </p>
-      ) : null}
-
       <p role="status" aria-live="polite" className="quiet" style={{ marginTop: "0.85rem" }}>
         {status}
       </p>
@@ -790,11 +813,11 @@ export function PlaylistDocument({
       </nav>
 
       <div className="view-toggle" role="group" aria-label="How to browse songs">
-        <button type="button" aria-pressed={browse === "list"} onClick={() => setBrowse("list")}>
-          List
+        <button type="button" aria-pressed={browse === "flow"} onClick={() => chooseView("flow")}>
+          Cover Flow
         </button>
-        <button type="button" aria-pressed={browse === "covers"} onClick={() => setBrowse("covers")}>
-          Covers
+        <button type="button" aria-pressed={browse === "list"} onClick={() => chooseView("list")}>
+          List
         </button>
         <button type="button" aria-pressed={autoAdvance} onClick={() => setAutoAdvance((current) => !current)}>
           {autoAdvance ? "Next preview: on" : "Next preview: off"}
@@ -810,7 +833,8 @@ export function PlaylistDocument({
             chapter={chapter}
             catalog={catalog}
             brokenArt={brokenArt}
-            browse={browse}
+            songs={browse === "list"}
+            flow={browse === "flow"}
             eager={eagerYears.has(chapter.year)}
             onVisible={onVisible.current}
             onSelect={setSelectedKey}

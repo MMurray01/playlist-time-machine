@@ -1,11 +1,12 @@
-import type { Metadata } from "next"
 import Link from "next/link"
+import { siteMetadata } from "@/lib/site/metadata"
 
-export const metadata: Metadata = {
+export const metadata = siteMetadata({
   title: "How it works · Playlist Time Machine",
   description:
     "Enter your high school graduation year and get the number one hits from the years around it, the popular songs of the time.",
-}
+  path: "/how-it-works",
+})
 
 export default function HowItWorksPage() {
   return (
