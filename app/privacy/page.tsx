@@ -50,7 +50,8 @@ export default function PrivacyPage() {
       </ul>
       <p>
         A 30-second preview uses a public catalog preview URL and does not require a sign-in. Full playback is offered
-        only after you have authorized MusicKit.
+        only after you have authorized MusicKit. A cover collage loads album artwork from Apple in your browser so you
+        can download a picture. We do not store those image files, and we do not sell prints.
       </p>
       <h2>Data security</h2>
       <p>

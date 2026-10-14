@@ -14,16 +14,29 @@ async function requestOrigin(): Promise<string> {
   return `${proto}://${host}`
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ collage?: string }>
+}): Promise<Metadata> {
   const { id } = await params
+  const query = await searchParams
   const page = await getSharedPlaylistPage(id)
   if (!page.ok) {
     return { title: "Playlist not found · Playlist Time Machine" }
   }
   const origin = await requestOrigin()
   const canonical = origin ? `${origin}/p/${id}` : `/p/${id}`
-  const title = `${page.playlist.title} · Playlist Time Machine`
-  const description = `Number one hits from ${page.playlist.startYear} through ${page.playlist.endYear}, the popular songs of the time. ${page.playlist.hits.length} songs, in the order they reached the top.`
+  const collage = query.collage === "1"
+  const invite = origin ? `${canonical}?collage=1` : `/p/${id}?collage=1`
+  const title = collage
+    ? `Make a cover collage · ${page.playlist.title}`
+    : `${page.playlist.title} · Playlist Time Machine`
+  const description = collage
+    ? `A free collage of album covers from ${page.playlist.title}, ${page.playlist.startYear}–${page.playlist.endYear}. Make your own with Playlist Time Machine.`
+    : `Number one hits from ${page.playlist.startYear} through ${page.playlist.endYear}, the popular songs of the time. ${page.playlist.hits.length} songs, in the order they reached the top.`
   return {
     title,
     description,
@@ -32,7 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       title,
       description,
       type: "website",
-      url: canonical,
+      url: collage ? invite : canonical,
       images: [origin ? `${origin}/p/${id}/opengraph-image` : `/p/${id}/opengraph-image`],
     },
     twitter: {
@@ -43,8 +56,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   }
 }
 
-export default async function SharedPlaylistPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SharedPlaylistPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ collage?: string }>
+}) {
   const { id } = await params
+  const query = await searchParams
   const page = await getSharedPlaylistPage(id)
   if (!page.ok && page.reason === "not_found") notFound()
   if (!page.ok) {
@@ -66,6 +86,7 @@ export default async function SharedPlaylistPage({ params }: { params: Promise<{
         providers={getProviderAvailability()}
         mode="shared"
         affiliateToken={getAffiliateToken()}
+        openCollage={query.collage === "1"}
       />
     </main>
   )

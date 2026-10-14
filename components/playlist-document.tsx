@@ -269,11 +269,13 @@ export function PlaylistDocument({
   providers,
   mode,
   affiliateToken = null,
+  openCollage = false,
 }: {
   playlist: BuiltPlaylist
   providers: ProviderAvailability
   mode: "builder" | "shared"
   affiliateToken?: string | null
+  openCollage?: boolean
 }) {
   const [name, setName] = useState(playlist.title)
   const [catalog, setCatalog] = useState<Record<string, MatchedTrack | null>>({})
@@ -293,7 +295,11 @@ export function PlaylistDocument({
   const [busy, setBusy] = useState(false)
   const [playingKey, setPlayingKey] = useState<string | null>(null)
   const [autoAdvance, setAutoAdvance] = useState(true)
+  const [collageOpen, setCollageOpen] = useState(openCollage)
+  const [CollageView, setCollageView] = useState<typeof import("@/components/cover-collage").CoverCollage | null>(null)
   const previewAudio = useRef<HTMLAudioElement>(null)
+  const collageLinkRef = useRef<HTMLButtonElement>(null)
+  const seenPlaylist = useRef(playlist)
   const titleTag = mode === "shared" ? "h1" : "h2"
   const Title = titleTag
   const badgePlacement: AffiliatePlacement = mode === "shared" ? "share-page" : "preview-badge"
@@ -312,8 +318,23 @@ export function PlaylistDocument({
     setStatus("")
     setCanPlayFull(false)
     setPlayingKey(null)
+    if (seenPlaylist.current !== playlist) {
+      seenPlaylist.current = playlist
+      setCollageOpen(false)
+    }
     previewAudio.current?.pause()
   }, [playlist])
+
+  useEffect(() => {
+    if (!collageOpen || CollageView) return
+    let cancelled = false
+    void import("@/components/cover-collage").then((mod) => {
+      if (!cancelled) setCollageView(() => mod.CoverCollage)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [CollageView, collageOpen])
 
   function rememberLookup(result: LookupResult) {
     setCatalog((current) => {
@@ -544,6 +565,27 @@ export function PlaylistDocument({
     }
   }
 
+  async function ensureSharePage(): Promise<string | null> {
+    if (mode === "shared") {
+      const url = new URL(window.location.href)
+      url.search = ""
+      url.hash = ""
+      return url.toString()
+    }
+    if (shareUrl) return shareUrl
+    try {
+      const result = await sharePlaylistAction({
+        graduationYear: playlist.graduationYear,
+        title: name,
+      })
+      if (!result.ok) return null
+      setShareUrl(result.url)
+      return result.url
+    } catch {
+      return null
+    }
+  }
+
   const notFoundLabel = unmatched.filter((song) => song.reason === "not_in_catalog")
   const failedLabel = unmatched.filter((song) => song.reason === "search_failed")
   const selected = selectedKey ? (playlist.hits.find((hit) => hitKey(hit) === selectedKey) ?? null) : null
@@ -663,6 +705,26 @@ export function PlaylistDocument({
           CSV
         </button>
       </div>
+      <p className="collage-offer">
+        <button
+          ref={collageLinkRef}
+          type="button"
+          className="linkish"
+          data-collage-link
+          disabled={playlist.hits.length === 0}
+          onClick={() => {
+            performance.mark("collage-open")
+            setCollageOpen(true)
+          }}
+        >
+          Make a cover collage
+        </button>
+      </p>
+      {collageOpen && !CollageView ? (
+        <p role="status" className="quiet">
+          Opening the collage.
+        </p>
+      ) : null}
 
       <p role="status" aria-live="polite" className="quiet" style={{ marginTop: "0.85rem" }}>
         {status}
@@ -763,6 +825,23 @@ export function PlaylistDocument({
           onPreview={() => {
             previewAudio.current?.pause()
             setPlayingKey(null)
+          }}
+        />
+      ) : null}
+      {CollageView && collageOpen ? (
+        <CollageView
+          hits={playlist.hits}
+          title={name.trim() || playlist.title}
+          startYear={playlist.startYear}
+          endYear={playlist.endYear}
+          catalog={catalog}
+          onRequestCovers={(rows) => {
+            void loadHits.current(rows)
+          }}
+          onEnsureShareUrl={ensureSharePage}
+          onClose={() => {
+            setCollageOpen(false)
+            collageLinkRef.current?.focus()
           }}
         />
       ) : null}

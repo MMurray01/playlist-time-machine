@@ -24,7 +24,8 @@ export default function TermsPage() {
       <p>
         Playlist Time Machine is a free web application that builds a playlist of number one hits, the popular songs
         of the time, from the years around a high school graduation year (five years before through five years after).
-        You can save that playlist to Apple Music, or download a list of the artist, song, and year.
+        You can save that playlist to Apple Music, download a list of the artist, song, and year, or make a free
+        collage of the album covers. Collages are free to download and are not sold as prints.
       </p>
       <h2>Use of the service</h2>
       <p>You agree to use the Service only for lawful purposes and in accordance with these Terms. You agree not to:</p>
@@ -48,7 +49,8 @@ export default function TermsPage() {
       <p>
         The Service and its original content, features, and functionality are owned by abeba co LLC and are protected
         by copyright, trademark, and other intellectual property laws. Lists of number one hits are used for
-        informational purposes. Song titles, artist names, and recordings belong to their respective owners.
+        informational purposes. Song titles, artist names, recordings, and album artwork belong to their respective
+        owners. Album artwork in a collage is shown from Apple for that picture only.
       </p>
       <h2>Disclaimer of warranties</h2>
       <p>
