@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { PlaylistDocument } from "@/components/playlist-document"
-import { tokens } from "@/lib/playlist/tokens"
 import { getProviderAvailability } from "@/lib/server/env"
 import { getSharedPlaylistPage } from "@/lib/server/share"
 
@@ -38,21 +37,17 @@ export default async function SharedPlaylistPage({ params }: { params: Promise<{
   if (!page.ok && page.reason === "not_found") notFound()
   if (!page.ok) {
     return (
-      <main className="sheet px-4 py-16">
-        <h1 className="display text-4xl">The chart library could not be read.</h1>
-        <p className="mt-3" style={{ color: tokens.inkSoft }}>
-          Try this link again in a moment.
-        </p>
+      <main className="sheet px-1 py-16 sm:py-24">
+        <h1>The chart library could not be read.</h1>
+        <p className="lede">Try this link again in a moment.</p>
       </main>
     )
   }
 
   return (
-    <main className="sheet px-1 py-8 sm:py-14">
-      <p className="text-sm font-semibold uppercase tracking-[0.18em]" style={{ color: tokens.burgundy }}>
-        <Link href="/" style={{ color: tokens.burgundy }}>
-          Playlist Time Machine
-        </Link>
+    <main className="sheet px-1 py-16 sm:py-24">
+      <p className="wordmark">
+        <Link href="/">Playlist Time Machine</Link>
       </p>
       <PlaylistDocument playlist={page.playlist} providers={getProviderAvailability()} mode="shared" />
     </main>

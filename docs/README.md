@@ -4,7 +4,7 @@ This replaces the old root `SPOTIFY_*.md` notes. Those files described one-song 
 
 ## Environment
 
-Set these in the host, not in git. `.env.example` lists every name.
+Set these in the host, not in git. `.env.example` lists every name. For Vercel, use [DEPLOY.md](DEPLOY.md): it has the exact variable list and the Spotify and Apple redirect setup. The site runs with Supabase and Spotify only. Apple Music stays hidden until its three variables are set.
 
 | Name | Used for |
 | --- | --- |

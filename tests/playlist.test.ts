@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import { contrastRatio } from "@/lib/playlist/contrast"
-import { themeForYear } from "@/lib/playlist/decade"
+import { decadeOf } from "@/lib/playlist/decade"
 import { isMissingColumnError } from "@/lib/playlist/errors"
 import { buildPlaylist, dedupeHits, filterByGenres, mapHitRow, orderHits } from "@/lib/playlist/hits"
 import { createShareId, isShareId } from "@/lib/playlist/ids"
@@ -263,16 +263,16 @@ describe("share ids and missing columns", () => {
 
 describe("contrast", () => {
   it("keeps text colors at WCAG AA", () => {
-    expect(contrastRatio(tokens.onBurgundy, tokens.burgundy)).toBeGreaterThanOrEqual(4.5)
-    expect(contrastRatio(tokens.onSpotify, tokens.spotify)).toBeGreaterThanOrEqual(4.5)
-    expect(contrastRatio(tokens.onApple, tokens.apple)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(tokens.onAccent, tokens.accent)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(tokens.onInk, tokens.ink)).toBeGreaterThanOrEqual(4.5)
     expect(contrastRatio(tokens.ink, tokens.paper)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(tokens.ink, tokens.surface)).toBeGreaterThanOrEqual(4.5)
     expect(contrastRatio(tokens.inkSoft, tokens.paper)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(tokens.inkSoft, tokens.surface)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(tokens.accent, tokens.paper)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(tokens.accent, tokens.surface)).toBeGreaterThanOrEqual(4.5)
     expect(contrastRatio(tokens.dangerInk, tokens.dangerWash)).toBeGreaterThanOrEqual(4.5)
-    for (const year of [1965, 1975, 1984, 1995, 2005, 2015, 2024]) {
-      const theme = themeForYear(year)
-      expect(contrastRatio(theme.ink, theme.wash)).toBeGreaterThanOrEqual(4.5)
-      expect(contrastRatio("#fffdf8", theme.stripe)).toBeGreaterThanOrEqual(4.5)
-    }
+    expect(contrastRatio(tokens.coverInk, tokens.cover)).toBeGreaterThanOrEqual(4.5)
+    expect(decadeOf(1984)).toBe(1980)
   })
 })

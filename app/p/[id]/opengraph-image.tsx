@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og"
+import { tokens } from "@/lib/playlist/tokens"
 import { getSharedPlaylistPage } from "@/lib/server/share"
 
 export const alt = "Playlist Time Machine"
@@ -25,18 +26,16 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "#f3eee4",
-          color: "#1c1714",
+          background: tokens.paper,
+          color: tokens.ink,
           padding: "72px",
         }}
       >
-        <div style={{ display: "flex", fontSize: 28, letterSpacing: 4, color: "#6e1e34", fontWeight: 700 }}>
-          PLAYLIST TIME MACHINE
-        </div>
+        <div style={{ display: "flex", fontSize: 28, color: tokens.accent, fontWeight: 600 }}>Playlist Time Machine</div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 84, lineHeight: 1, fontWeight: 650 }}>{title}</div>
-          <div style={{ display: "flex", marginTop: 24, fontSize: 32, color: "#3f3832" }}>{detail}</div>
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 28, fontSize: 28, color: "#3f3832" }}>
+          <div style={{ display: "flex", fontSize: 76, lineHeight: 1.05, fontWeight: 600, letterSpacing: -2 }}>{title}</div>
+          <div style={{ display: "flex", marginTop: 24, fontSize: 30, color: tokens.inkSoft }}>{detail}</div>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 28, fontSize: 26, color: tokens.inkSoft }}>
             {opening.map((line) => (
               <div key={line} style={{ display: "flex" }}>
                 {line}

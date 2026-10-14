@@ -4,8 +4,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { useSearchParams } from "next/navigation"
 import { generatePlaylistAction } from "@/actions/playlist-actions"
 import { PlaylistDocument } from "@/components/playlist-document"
-import { tokens } from "@/lib/playlist/tokens"
-import { themeForYear } from "@/lib/playlist/decade"
 import type { BuiltPlaylist, ProviderAvailability } from "@/lib/playlist/types"
 import { graduationWindow, isValidGraduationYear, MAX_GRADUATION_YEAR, MIN_GRADUATION_YEAR } from "@/lib/playlist/window"
 
@@ -45,7 +43,6 @@ export function TimeMachine({
   const windowHint = yearNumber
     ? `Class of ${yearNumber} covers ${graduationWindow(yearNumber).startYear} through ${graduationWindow(yearNumber).endYear}.`
     : `Use a year from ${MIN_GRADUATION_YEAR} through ${MAX_GRADUATION_YEAR}.`
-  const yearTheme = themeForYear(yearNumber ?? 1980)
 
   useEffect(() => {
     const code = searchParams.get("notice")
@@ -110,39 +107,28 @@ export function TimeMachine({
       <a className="skip-link" href="#graduation-year">
         Skip to graduation year
       </a>
-      <main className="sheet px-1 py-8 sm:py-14">
-        <header className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em]" style={{ color: tokens.burgundy }}>
-            A reunion soundtrack
-          </p>
-          <h1 className="display mt-3 text-5xl leading-[0.95] sm:text-6xl" style={{ color: tokens.ink }}>
-            The No. 1s from your class.
-          </h1>
-          <p className="mt-4 text-lg leading-relaxed" style={{ color: tokens.inkSoft }}>
-            Type the year you graduated. You get every Billboard Hot 100 No. 1 from five years before that year
-            through five years after, in the order they topped the chart.
+      <main className="sheet px-1 py-16 sm:py-24">
+        <header className="mast">
+          <p className="wordmark">Playlist Time Machine</p>
+          <h1>The No. 1s from your class.</h1>
+          <p className="lede">
+            Enter the year you graduated. This builds every Hot 100 No. 1 from five years before that year through
+            five years after, in the order they reached No. 1.
           </p>
         </header>
 
-        <form onSubmit={onSubmit} aria-busy={loading} className="space-y-6">
+        <form onSubmit={onSubmit} aria-busy={loading}>
           <div>
-            <label htmlFor="graduation-year" className="text-sm font-semibold" style={{ color: tokens.ink }}>
+            <label htmlFor="graduation-year" className="field-label">
               Graduation year
             </label>
-            <div className="mt-3 flex items-end gap-3">
-              <button
-                type="button"
-                onClick={() => step(-1)}
-                aria-label="Earlier graduation year"
-                className="mb-3 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-2xl"
-                style={{ background: tokens.card, color: tokens.ink, border: `1px solid ${tokens.line}` }}
-              >
+            <div className="year-row">
+              <button type="button" onClick={() => step(-1)} aria-label="Earlier graduation year" className="step">
                 −
               </button>
               <input
                 id="graduation-year"
                 className="year-input"
-                style={{ color: yearTheme.ink }}
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="1984"
@@ -150,30 +136,24 @@ export function TimeMachine({
                 value={year}
                 onChange={(event) => setYear(event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
               />
-              <button
-                type="button"
-                onClick={() => step(1)}
-                aria-label="Later graduation year"
-                className="mb-3 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-2xl"
-                style={{ background: tokens.card, color: tokens.ink, border: `1px solid ${tokens.line}` }}
-              >
+              <button type="button" onClick={() => step(1)} aria-label="Later graduation year" className="step">
                 +
               </button>
             </div>
-            <p id="year-hint" className="mt-3 text-center text-sm" style={{ color: tokens.inkSoft }}>
+            <p id="year-hint" className="hint year-hint">
               {windowHint}
             </p>
           </div>
 
           {genres.length > 0 ? (
-            <fieldset>
-              <legend className="text-sm font-semibold" style={{ color: tokens.ink }}>
-                Styles <span style={{ color: tokens.inkSoft, fontWeight: 500 }}>Optional</span>
+            <fieldset className="styles">
+              <legend className="field-label">
+                Styles <span>Optional</span>
               </legend>
-              <p className="mt-1 text-sm" style={{ color: tokens.inkSoft }}>
+              <p className="hint" style={{ marginTop: "0.35rem" }}>
                 Leave these off to include every No. 1.
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="chips">
                 {genres.map((genre) => {
                   const pressed = selected.includes(genre)
                   return (
@@ -186,12 +166,7 @@ export function TimeMachine({
                           current.includes(genre) ? current.filter((item) => item !== genre) : [...current, genre],
                         )
                       }
-                      className="min-h-11 rounded-full px-4 text-sm font-semibold"
-                      style={{
-                        background: pressed ? tokens.ink : tokens.card,
-                        color: pressed ? tokens.card : tokens.ink,
-                        border: `1px solid ${pressed ? tokens.ink : tokens.line}`,
-                      }}
+                      className="chip"
                     >
                       {genre}
                     </button>
@@ -202,29 +177,29 @@ export function TimeMachine({
           ) : null}
 
           {notice ? (
-            <p role="status" className="rounded-2xl px-4 py-3 text-sm" style={{ background: tokens.card, color: tokens.ink }}>
+            <p role="status" className="note">
               {notice}
             </p>
           ) : null}
           {error ? (
-            <p role="alert" className="rounded-2xl px-4 py-3 text-sm" style={{ background: tokens.dangerWash, color: tokens.dangerInk }}>
+            <p role="alert" className="alert">
               {error}
             </p>
           ) : null}
 
-          <button
-            type="submit"
-            disabled={loading || !yearNumber || Boolean(libraryError)}
-            className="min-h-14 w-full rounded-full text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ background: tokens.burgundy, color: tokens.onBurgundy }}
-          >
+          <button type="submit" disabled={loading || !yearNumber || Boolean(libraryError)} className="btn btn-accent">
             {loading ? "Building the playlist" : "Build my playlist"}
           </button>
           {loading ? (
-            <p role="status" className="text-center text-sm" style={{ color: tokens.inkSoft }}>
-              Gathering every No. 1 from {yearNumber ? graduationWindow(yearNumber).startYear : ""} through{" "}
-              {yearNumber ? graduationWindow(yearNumber).endYear : ""}.
-            </p>
+            <>
+              <div className="pending" aria-hidden="true">
+                <span />
+              </div>
+              <p role="status" className="hint" style={{ marginTop: "0.75rem", textAlign: "center" }}>
+                Gathering every No. 1 from {yearNumber ? graduationWindow(yearNumber).startYear : ""} through{" "}
+                {yearNumber ? graduationWindow(yearNumber).endYear : ""}.
+              </p>
+            </>
           ) : null}
         </form>
 

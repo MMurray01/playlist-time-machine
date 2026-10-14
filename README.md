@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-Copy `.env.example` to `.env.local` and set the Supabase keys. Spotify and Apple Music are optional. If Apple Music’s three environment variables are missing, that button stays hidden.
+Copy `.env.example` to `.env.local` and set the Supabase URL, anon key, and Spotify client id. That is enough to run the site and save to Spotify. Album art before sign-in also needs `SPOTIFY_CLIENT_SECRET`. Apple Music stays hidden until its three variables are set. Share links need `SUPABASE_SERVICE_ROLE_KEY`. Vercel setup is in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ```bash
 pnpm test

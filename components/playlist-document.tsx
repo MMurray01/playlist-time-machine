@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
-import { themeForYear } from "@/lib/playlist/decade"
 import { hitKey } from "@/lib/playlist/hits"
-import { tokens } from "@/lib/playlist/tokens"
-import type { BuiltPlaylist, MatchedTrack, ProviderAvailability, UnmatchedTrack } from "@/lib/playlist/types"
+import type { BuiltPlaylist, ChartHit, MatchedTrack, ProviderAvailability, UnmatchedTrack } from "@/lib/playlist/types"
 import { playlistDescription } from "@/lib/playlist/window"
 
 type LookupResult = {
@@ -66,6 +64,31 @@ function initials(title: string): string {
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("")
   return letters || "1"
+}
+
+function Cover({
+  hit,
+  art,
+  broken,
+  onError,
+}: {
+  hit: ChartHit
+  art: string | undefined
+  broken: boolean
+  onError: () => void
+}) {
+  if (art && !broken) {
+    return (
+      // Provider artwork hosts vary, so this stays a plain image.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={art} alt="" width={640} height={640} className="cover" onError={onError} />
+    )
+  }
+  return (
+    <span aria-hidden="true" className="cover cover-fallback">
+      {initials(hit.title)}
+    </span>
+  )
 }
 
 export function PlaylistDocument({
@@ -352,115 +375,99 @@ export function PlaylistDocument({
   const notFoundLabel = unmatched.filter((song) => song.reason === "not_in_catalog")
   const failedLabel = unmatched.filter((song) => song.reason === "search_failed")
 
+  const opening = playlist.hits.slice(0, 3)
+  const actionClass = providers.apple ? "actions actions-split" : "actions"
+
   return (
-    <section id="playlist" aria-labelledby="playlist-title" className="mt-10 space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.16em]" style={{ color: tokens.burgundy }}>
-          {playlist.hits.length} No. 1 {playlist.hits.length === 1 ? "hit" : "hits"}
-        </p>
-        <Title id="playlist-title" className="display mt-2 text-4xl leading-tight sm:text-5xl" style={{ color: tokens.ink }}>
-          {mode === "shared" ? playlist.title : name || playlist.title}
-        </Title>
-        <p className="mt-3 text-base leading-relaxed" style={{ color: tokens.inkSoft }}>
-          {playlist.startYear} through {playlist.endYear}, in the order they topped the chart.
+    <section id="playlist" aria-labelledby="playlist-title" className="results">
+      <div className="playlist-head">
+        <p className="kicker">{playlist.hits.length === 1 ? "1 song" : `${playlist.hits.length} songs`}</p>
+        <Title id="playlist-title">{mode === "shared" ? playlist.title : name || playlist.title}</Title>
+        <p className="summary">
+          {playlist.startYear} through {playlist.endYear}, in chart order.
           {playlist.genres.length > 0 ? ` Styles: ${playlist.genres.join(", ")}.` : " Every style is included."}
         </p>
       </div>
 
-      <div className="space-y-3 rounded-3xl p-4 sm:p-5" style={{ background: tokens.card, border: `1px solid ${tokens.line}` }}>
-        {mode === "builder" ? (
-          <div>
-            <label htmlFor="playlist-name" className="text-sm font-semibold" style={{ color: tokens.ink }}>
-              Playlist name
-            </label>
-            <input
-              id="playlist-name"
-              value={name}
-              onChange={(event) => setName(event.target.value.slice(0, 80))}
-              maxLength={80}
-              className="mt-2 w-full rounded-2xl border px-4 py-3 text-base"
-              style={{ borderColor: tokens.line, background: tokens.paper, color: tokens.ink }}
-            />
-          </div>
-        ) : null}
-
-        <div className="grid gap-3">
-          <button
-            type="button"
-            onClick={() => void saveSpotify()}
-            disabled={busy || !providers.spotify || playlist.hits.length === 0}
-            className="min-h-12 rounded-full px-5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ background: tokens.spotify, color: tokens.onSpotify }}
-          >
-            Save to Spotify
-          </button>
-          {!providers.spotify ? (
-            <p className="text-sm" style={{ color: tokens.inkSoft }}>
-              Spotify is not set up on this site yet.
-            </p>
-          ) : null}
-          {providers.apple ? (
-            <button
-              type="button"
-              onClick={() => void saveApple()}
-              disabled={busy || playlist.hits.length === 0}
-              className="min-h-12 rounded-full px-5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: tokens.apple, color: tokens.onApple }}
-            >
-              Save to Apple Music
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void share()}
-            disabled={busy || playlist.hits.length === 0}
-            className="min-h-12 rounded-full border px-5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ borderColor: tokens.ink, color: tokens.ink, background: "transparent" }}
-          >
-            Share
-          </button>
+      {mode === "builder" ? (
+        <div style={{ marginTop: "1.5rem" }}>
+          <label htmlFor="playlist-name" className="field-label">
+            Playlist name
+          </label>
+          <input
+            id="playlist-name"
+            value={name}
+            onChange={(event) => setName(event.target.value.slice(0, 80))}
+            maxLength={80}
+            className="name-field"
+          />
         </div>
+      ) : null}
 
-        <p role="status" aria-live="polite" className="text-sm" style={{ color: tokens.inkSoft }}>
-          {coverNote || status}
-        </p>
-        {error ? (
-          <p role="alert" className="rounded-2xl px-4 py-3 text-sm" style={{ background: tokens.dangerWash, color: tokens.dangerInk }}>
-            {error}
-          </p>
+      <div className={actionClass}>
+        <button
+          type="button"
+          onClick={() => void saveSpotify()}
+          disabled={busy || !providers.spotify || playlist.hits.length === 0}
+          className="btn btn-ink"
+        >
+          Save to Spotify
+        </button>
+        {providers.apple ? (
+          <button
+            type="button"
+            onClick={() => void saveApple()}
+            disabled={busy || playlist.hits.length === 0}
+            className="btn btn-ink"
+          >
+            Save to Apple Music
+          </button>
         ) : null}
-        {playlistUrl ? (
-          <a className="inline-block text-sm font-semibold underline" style={{ color: tokens.ink }} href={playlistUrl}>
-            Open the saved playlist
-          </a>
-        ) : null}
-        {shareUrl ? (
-          <p className="break-all text-sm">
-            <a href={shareUrl} style={{ color: tokens.ink }} className="font-semibold underline">
-              {shareUrl}
-            </a>
-          </p>
-        ) : null}
-        {notFoundLabel.length > 0 ? (
-          <details>
-            <summary className="cursor-pointer text-sm font-semibold">
-              {notFoundLabel.length} {notFoundLabel.length === 1 ? "song was" : "songs were"} not in the catalog
-            </summary>
-            <ul className="mt-2 space-y-1 text-sm" style={{ color: tokens.inkSoft }}>
-              {notFoundLabel.map((song) => (
-                <li key={song.key}>
-                  {song.title} by {song.artist}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-        {failedLabel.length > 0 ? (
-          <p className="text-sm" style={{ color: tokens.inkSoft }}>
-            {failedLabel.length} {failedLabel.length === 1 ? "song could" : "songs could"} not be checked. Try saving again.
-          </p>
-        ) : null}
+        <button type="button" onClick={() => void share()} disabled={busy || playlist.hits.length === 0} className="btn btn-ghost">
+          Share
+        </button>
       </div>
+      {!providers.spotify ? <p className="quiet" style={{ marginTop: "0.7rem" }}>Spotify is not set up on this site yet.</p> : null}
+
+      <p role="status" aria-live="polite" className="quiet" style={{ marginTop: "0.85rem" }}>
+        {coverNote || status}
+      </p>
+      {error ? (
+        <p role="alert" className="alert">
+          {error}
+        </p>
+      ) : null}
+      {playlistUrl ? (
+        <a className="linkish" href={playlistUrl}>
+          Open the saved playlist
+        </a>
+      ) : null}
+      {shareUrl ? (
+        <p className="quiet" style={{ marginTop: "0.45rem", overflowWrap: "anywhere" }}>
+          <a href={shareUrl} className="linkish">
+            {shareUrl}
+          </a>
+        </p>
+      ) : null}
+      {notFoundLabel.length > 0 ? (
+        <details className="details">
+          <summary>
+            {notFoundLabel.length} {notFoundLabel.length === 1 ? "song was" : "songs were"} not in the catalog
+          </summary>
+          <ul style={{ marginTop: "0.5rem" }}>
+            {notFoundLabel.map((song) => (
+              <li key={song.key}>
+                {song.title} by {song.artist}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {failedLabel.length > 0 ? (
+        <p className="quiet" style={{ marginTop: "0.45rem" }}>
+          {failedLabel.length} {failedLabel.length === 1 ? "song could" : "songs could"} not be checked. Try saving again.
+        </p>
+      ) : null}
 
       <nav aria-label="Years in this playlist" className="year-jump">
         {playlist.years.map((chapter) => (
@@ -470,65 +477,66 @@ export function PlaylistDocument({
         ))}
       </nav>
 
-      <div className="space-y-5">
-        {playlist.years.map((chapter) => {
-          const theme = themeForYear(chapter.year)
-          return (
-            <article
-              key={chapter.year}
-              id={`year-${chapter.year}`}
-              className="scroll-mt-4 rounded-3xl p-4 sm:p-5"
-              style={{ background: theme.wash, color: theme.ink, boxShadow: `inset 6px 0 0 ${theme.stripe}` }}
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <h3 className="display text-4xl">{chapter.year}</h3>
-                <p className="text-sm font-semibold">
-                  {theme.label} · {chapter.hits.length} No. 1{chapter.hits.length === 1 ? "" : "s"}
-                </p>
-              </div>
-              {chapter.story.editorial ? <p className="mt-3 text-base leading-relaxed">{chapter.story.editorial}</p> : null}
-              <p className="mt-3 text-base leading-relaxed">{chapter.story.summary}</p>
-              {chapter.hits.length > 0 ? (
-                <ol className="mt-4 divide-y" style={{ borderColor: theme.stripe }}>
-                  {chapter.hits.map((hit) => {
-                    const key = hitKey(hit)
-                    const art = artwork[key]
-                    const weeks = weeksLabel(hit.weeksAtNumberOne)
-                    return (
-                      <li key={key} className="flex items-center gap-3 py-3">
-                        {art && !brokenArt[key] ? (
-                          // Provider artwork hosts vary, so this stays a plain image.
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={art}
-                            alt=""
-                            width={56}
-                            height={56}
-                            className="cover"
-                            onError={() => setBrokenArt((current) => ({ ...current, [key]: true }))}
-                          />
-                        ) : (
-                          <span
-                            aria-hidden="true"
-                            className="cover inline-flex items-center justify-center text-sm font-semibold"
-                            style={{ background: theme.stripe, color: "#fffdf8" }}
-                          >
-                            {initials(hit.title)}
-                          </span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold leading-tight">{hit.title}</p>
-                          <p className="truncate text-sm leading-tight">{hit.artist}</p>
-                          {weeks ? <p className="text-xs leading-tight">{weeks}</p> : null}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ol>
-              ) : null}
-            </article>
-          )
-        })}
+      {opening.length > 0 ? (
+        <div className="lead-art" aria-hidden="true">
+          {opening.map((hit) => {
+            const key = hitKey(hit)
+            return (
+              <figure key={key}>
+                <Cover
+                  hit={hit}
+                  art={artwork[key]}
+                  broken={Boolean(brokenArt[key])}
+                  onError={() => setBrokenArt((current) => ({ ...current, [key]: true }))}
+                />
+                <figcaption>
+                  <p className="lead-title">{hit.title}</p>
+                  <p className="lead-artist">{hit.artist}</p>
+                </figcaption>
+              </figure>
+            )
+          })}
+        </div>
+      ) : null}
+
+      <div>
+        {playlist.years.map((chapter) => (
+          <article key={chapter.year} id={`year-${chapter.year}`} className="year-block">
+            <div className="year-heading">
+              <h3>{chapter.year}</h3>
+              <p className="quiet">
+                {chapter.hits.length} {chapter.hits.length === 1 ? "song" : "songs"}
+              </p>
+            </div>
+            {chapter.story.editorial ? <p className="story">{chapter.story.editorial}</p> : null}
+            <p className="story">{chapter.story.summary}</p>
+            {chapter.hits.length > 0 ? (
+              <ol className="tracks">
+                {chapter.hits.map((hit) => {
+                  const key = hitKey(hit)
+                  const weeks = weeksLabel(hit.weeksAtNumberOne)
+                  return (
+                    <li key={key} className="track">
+                      <Cover
+                        hit={hit}
+                        art={artwork[key]}
+                        broken={Boolean(brokenArt[key])}
+                        onError={() => setBrokenArt((current) => ({ ...current, [key]: true }))}
+                      />
+                      <div>
+                        <p className="track-title">{hit.title}</p>
+                        <p className="track-meta">
+                          {hit.artist}
+                          {weeks ? ` · ${weeks}` : ""}
+                        </p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            ) : null}
+          </article>
+        ))}
       </div>
     </section>
   )

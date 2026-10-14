@@ -20,7 +20,7 @@ interface AppleSongJson {
 
 export function appleArtworkUrl(template: string | undefined): string | null {
   if (!template) return null
-  return template.replace("{w}", "300").replace("{h}", "300").replace("{f}", "jpg")
+  return template.replace("{w}", "640").replace("{h}", "640").replace("{f}", "jpg")
 }
 
 export function appleSongToCandidate(song: AppleSongJson): CatalogCandidate | null {

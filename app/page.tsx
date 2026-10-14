@@ -12,7 +12,13 @@ export default async function HomePage() {
   ])
 
   return (
-    <Suspense fallback={<p className="sheet px-4 py-16">Loading Playlist Time Machine.</p>}>
+    <Suspense
+      fallback={
+        <main className="sheet px-1 py-16">
+          <p role="status">Loading Playlist Time Machine.</p>
+        </main>
+      }
+    >
       <TimeMachine genres={library.genres} providers={providers} libraryError={library.error} />
     </Suspense>
   )

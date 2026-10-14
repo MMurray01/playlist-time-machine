@@ -1,7 +1,13 @@
 export default function Loading() {
   return (
-    <main className="sheet px-4 py-16">
-      <p role="status">Loading Playlist Time Machine.</p>
+    <main className="sheet px-1 py-16 sm:py-24">
+      <p className="wordmark">Playlist Time Machine</p>
+      <p role="status" className="lede">
+        Loading.
+      </p>
+      <div className="pending" aria-hidden="true">
+        <span />
+      </div>
     </main>
   )
 }

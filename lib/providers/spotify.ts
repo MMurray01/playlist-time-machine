@@ -17,7 +17,7 @@ function artworkFrom(track: SpotifyTrackJson): string | null {
   const images = track.album?.images?.filter((image) => image.url) ?? []
   if (images.length === 0) return null
   const sorted = [...images].sort(
-    (a, b) => Math.abs((a.width ?? 0) - 300) - Math.abs((b.width ?? 0) - 300),
+    (a, b) => Math.abs((a.width ?? 0) - 640) - Math.abs((b.width ?? 0) - 640),
   )
   return sorted[0]?.url ?? null
 }
