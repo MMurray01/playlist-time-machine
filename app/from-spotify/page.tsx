@@ -1,14 +1,15 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import { FromSpotify } from "@/components/from-spotify"
 import { getAffiliateToken } from "@/lib/server/env"
+import { siteMetadata } from "@/lib/site/metadata"
 
 export const dynamic = "force-dynamic"
 
-export const metadata: Metadata = {
+export const metadata = siteMetadata({
   title: "Coming from Spotify? · Playlist Time Machine",
   description: "Save a class playlist to Apple Music, start a trial, or transfer music you already saved.",
-}
+  path: "/from-spotify",
+})
 
 export default function FromSpotifyPage() {
   return (

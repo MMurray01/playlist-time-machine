@@ -1,10 +1,11 @@
-import type { Metadata } from "next"
 import Link from "next/link"
+import { siteMetadata } from "@/lib/site/metadata"
 
-export const metadata: Metadata = {
+export const metadata = siteMetadata({
   title: "Privacy Policy · Playlist Time Machine",
   description: "Privacy Policy for Playlist Time Machine, operated by abeba co LLC.",
-}
+  path: "/privacy",
+})
 
 export default function PrivacyPage() {
   return (

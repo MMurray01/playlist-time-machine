@@ -1,10 +1,11 @@
-import type { Metadata } from "next"
 import Link from "next/link"
+import { siteMetadata } from "@/lib/site/metadata"
 
-export const metadata: Metadata = {
+export const metadata = siteMetadata({
   title: "Terms of Service · Playlist Time Machine",
   description: "Terms of Service for Playlist Time Machine, operated by abeba co LLC.",
-}
+  path: "/terms",
+})
 
 export default function TermsPage() {
   return (

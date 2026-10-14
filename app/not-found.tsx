@@ -1,10 +1,11 @@
-import type { Metadata } from "next"
 import Link from "next/link"
+import { siteMetadata } from "@/lib/site/metadata"
 
-export const metadata: Metadata = {
+export const metadata = siteMetadata({
   title: "Page not found · Playlist Time Machine",
   description: "That page is not on Playlist Time Machine.",
-}
+  path: "/",
+})
 
 export default function NotFound() {
   return (
