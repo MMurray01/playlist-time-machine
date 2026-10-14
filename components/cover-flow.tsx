@@ -172,7 +172,7 @@ export function CoverFlow({
         <p className="flow-count">
           {index + 1} of {hits.length}
         </p>
-        <h3 className="flow-title">{current.title}</h3>
+        <p className="flow-title">{current.title}</p>
         <p className="flow-artist">{current.artist}</p>
         <p className="flow-year">{current.year}</p>
         <div className="flow-actions">
