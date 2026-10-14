@@ -630,7 +630,7 @@ export function PlaylistDocument({
         <SongDetail
           key={selectedKey ?? undefined}
           hit={selected}
-          match={selectedKey ? catalog[selectedKey] : undefined}
+          match={selectedKey ? (providers.apple ? catalog[selectedKey] : null) : undefined}
           canPlayFull={canPlayFull}
           onClose={() => setSelectedKey(null)}
         />
