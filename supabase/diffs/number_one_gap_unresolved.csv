@@ -73,3 +73,7 @@ note,,1962,1962-01-06,,,,The 1961-12-25 and 1962-01-06 issues are 12 days apart 
 note,,1976,,,,,"1976 has 52 issues. The gap from 1976-06-26 to 1976-07-04 to 1976-07-10 is the published weekday change, not a missing song."
 note,,2018,,,,,"2018 has 53 issues. 2017-12-30, 2018-01-03, and 2018-01-06 are the published issue dates."
 note,,1958,,22,,,1958 includes only the 22 issues from 1958-08-04 through 1958-12-29. Earlier 1958 charts were not imported.
+itunes,1814,1988,1988-12-03,1,Freebird Medley,Will to Power,"US iTunes song search does not return this recording, so no cover or preview."
+itunes,1915,2018,2018-06-30,1,Sad!,XXXTentacion,"US iTunes returns instrumental copies only. The lookup skips instrumentals, so no cover or preview is attached."
+itunes,1956,2024,2024-03-16,1,Carnival,¥$: Ye and Ty Dolla Sign featuring Rich the Kid and Playboi Carti,"The catalog has CARNIVAL by ¥$, Kanye West & Ty Dolla $ign, with artwork and a preview. The stored credit does not agree, so the lookup does not attach it."
+itunes,1971,2025,2025-08-16,8,Golden,"Huntrix: Ejae, Audrey Nuna and Rei Ami","The catalog has Golden by HUNTR/X, EJAE, AUDREY NUNA, REI AMI, with artwork and a preview. Huntrix does not agree with HUNTR/X, so the lookup does not attach it."

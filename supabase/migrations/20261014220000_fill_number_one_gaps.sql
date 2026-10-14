@@ -21,6 +21,8 @@
 --     Move Timmy T (song 315) to 1991-03-23, 1 week. Do not delete it.
 --   Candle in the Wind: delete song 1449. Keep Candle in the Wind 1997 (song 380).
 --   TiK ToK: delete Tik Tok (song 501). Keep TiK ToK (song 500).
+-- The February 1970 Sly & the Family Stone single is stored as
+-- Thank You (Falettinme Be Mice Elf Agin). Everybody Is a Star is the other side.
 BEGIN;
 
 DO $pre$
@@ -473,7 +475,7 @@ INSERT INTO public.songs (id, title, artist_id, genre_id, release_year, owner_id
   (1765, 'I''m Henry VIII, I Am', (SELECT id FROM public.artists WHERE name = 'Herman''s Hermits'), 2, 1965, NULL),
   (1766, 'Over and Over', 2395, 2, 1965, NULL),
   (1767, 'Venus', (SELECT id FROM public.artists WHERE name = 'Shocking Blue'), 2, 1970, NULL),
-  (1768, 'Thank You (Falettinme Be Mice Elf Agin) / Everybody Is a Star', (SELECT id FROM public.artists WHERE name = 'Sly & The Family Stone'), 2, 1970, NULL),
+  (1768, 'Thank You (Falettinme Be Mice Elf Agin)', (SELECT id FROM public.artists WHERE name = 'Sly & The Family Stone'), 2, 1970, NULL),
   (1769, 'Bridge over Troubled Water', (SELECT id FROM public.artists WHERE name = 'Simon and Garfunkel'), 2, 1970, NULL),
   (1770, 'Let It Be', (SELECT id FROM public.artists WHERE name = 'The Beatles'), 2, 1970, NULL),
   (1771, 'You''ve Got a Friend', (SELECT id FROM public.artists WHERE name = 'James Taylor'), 2, 1971, NULL),
