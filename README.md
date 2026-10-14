@@ -1,30 +1,37 @@
-# Application Development
+# Playlist Time Machine
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+Playlist Time Machine turns a high school graduation year into every Billboard Hot 100 No. 1 from the five years before that year through the five years after. The songs stay in chart order. Nothing is filled in from a hardcoded list.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/mmurray01s-projects/v0-application-development)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/AyTURl4QA8X)
+## Run it
 
-## Overview
+```bash
+pnpm install
+pnpm dev
+```
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+Copy `.env.example` to `.env.local` and set the Supabase keys. Spotify and Apple Music are optional. If Apple Music’s three environment variables are missing, that button stays hidden.
 
-## Deployment
+```bash
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm build
+```
 
-Your project is live at:
+## What you get
 
-**[https://vercel.com/mmurray01s-projects/v0-application-development](https://vercel.com/mmurray01s-projects/v0-application-development)**
+Enter a graduation year. Class of 1984 covers 1979 through 1989: 217 No. 1s, starting with Le Freak, Too Much Heaven, and I Will Survive. Styles are optional. Leave them off to include every song.
 
-## Build your app
+Each year has a short note built from the chart rows: how many songs reached No. 1, which songs are listed with the most weeks at No. 1, and which artists had the most No. 1s. `lib/playlist/editorial.ts` is where a later hand-written note can sit beside those facts.
 
-Continue building your app on:
+Save the playlist to Spotify or Apple Music. Songs are added in batches (100 at a time, which is as many as those APIs accept in one call), not one song at a time. The page reports how many songs each catalog had and lists the ones it did not.
 
-**[https://v0.dev/chat/projects/AyTURl4QA8X](https://v0.dev/chat/projects/AyTURl4QA8X)**
+Share creates a public page at `/p/[id]` with the same year notes and save buttons.
 
-## How It Works
+## Data
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+Songs come from the `number_one_hits` table. See [docs/README.md](docs/README.md) for Spotify, Apple Music, and the database migration.
+
+## Database migration
+
+`supabase/migrations/20261014020000_shared_playlist_title.sql` adds an optional playlist title and revokes public writes on the chart view. Apply it before relying on custom share titles. The app still saves and opens links if the title column is not there yet.
