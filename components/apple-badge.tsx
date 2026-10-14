@@ -1,7 +1,6 @@
 import { appleLinkRel, withAppleAffiliate, type AffiliatePlacement } from "@/lib/affiliate"
 
-const BADGE_SRC =
-  "https://toolbox.marketingtools.apple.com/api/badges/listen-on/badge/en-us?size=250x83"
+const BADGE_SRC = "/badges/listen-on-apple-music.png"
 
 export function AppleMusicBadge({
   url,
@@ -23,7 +22,7 @@ export function AppleMusicBadge({
     <a className="apple-badge" href={href} target="_blank" rel={appleLinkRel(affiliateToken)}>
       {/* Official Listen on Apple Music artwork. Do not restyle, crop, or recolor it. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={BADGE_SRC} alt="Listen on Apple Music" width={250} height={83} />
+      <img src={BADGE_SRC} alt="Listen on Apple Music" width={444} height={130} />
     </a>
   )
 }

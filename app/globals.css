@@ -584,9 +584,9 @@ body {
 
 .apple-badge img {
   display: block;
-  width: auto;
+  width: calc(40px * 444 / 130);
   height: 40px;
-  aspect-ratio: 250 / 83;
+  aspect-ratio: 444 / 130;
   border: 0;
   box-shadow: none;
   background: transparent;

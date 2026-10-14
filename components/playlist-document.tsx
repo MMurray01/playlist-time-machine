@@ -239,11 +239,9 @@ function YearBlock({
                     aria-pressed={playingKey === key}
                     disabled={!entry?.previewUrl}
                     aria-label={
-                      entry?.previewUrl
-                        ? playingKey === key
-                          ? `Pause the preview of ${hit.title}`
-                          : `Play a preview of ${hit.title}`
-                        : `Preview of ${hit.title} is not ready`
+                      playingKey === key
+                        ? `Pause preview of ${hit.title}`
+                        : `Play preview of ${hit.title}`
                     }
                     onClick={() => onTogglePlay(hit)}
                   >

@@ -3,6 +3,8 @@ import Link from "next/link"
 import { FromSpotify } from "@/components/from-spotify"
 import { getAffiliateToken } from "@/lib/server/env"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "Coming from Spotify? · Playlist Time Machine",
   description: "Save a class playlist to Apple Music, start a trial, or transfer music you already saved.",
