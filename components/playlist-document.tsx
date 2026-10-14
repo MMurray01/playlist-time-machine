@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useRef, useState } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
@@ -17,8 +18,15 @@ import type {
   UnmatchedTrack,
   YearChapter,
 } from "@/lib/playlist/types"
-import { playlistDescription } from "@/lib/playlist/window"
+import {
+  appleLibraryPlaylistDescription,
+  appleLibraryPlaylistName,
+} from "@/lib/playlist/apple-library"
 import { appleLinkRel, withAppleAffiliate, type AffiliatePlacement } from "@/lib/affiliate"
+
+const LibraryCover = dynamic(() => import("@/components/library-cover").then((mod) => mod.LibraryCover), {
+  ssr: false,
+})
 
 type LookupResult = {
   matches: MatchedTrack[]
@@ -290,6 +298,7 @@ export function PlaylistDocument({
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const [playlistUrl, setPlaylistUrl] = useState("")
+  const [appleSaved, setAppleSaved] = useState<{ name: string; description: string } | null>(null)
   const [shareUrl, setShareUrl] = useState("")
   const [unmatched, setUnmatched] = useState<UnmatchedTrack[]>([])
   const [busy, setBusy] = useState(false)
@@ -313,6 +322,7 @@ export function PlaylistDocument({
     requested.current = new Set()
     setUnmatched([])
     setPlaylistUrl("")
+    setAppleSaved(null)
     setShareUrl("")
     setError("")
     setStatus("")
@@ -487,13 +497,28 @@ export function PlaylistDocument({
       const userToken = await music.authorize()
       setCanPlayFull(true)
       setStatus(`Saving ${matches.length} songs to Apple Music.`)
+      const appleName = appleLibraryPlaylistName(playlist.graduationYear)
+      const shareForApple =
+        mode === "shared"
+          ? (() => {
+              const url = new URL(window.location.href)
+              url.search = ""
+              url.hash = ""
+              return url.toString()
+            })()
+          : shareUrl || null
+      const appleDescription = appleLibraryPlaylistDescription(
+        playlist.startYear,
+        playlist.endYear,
+        shareForApple,
+      )
       const response = await fetch("/api/apple/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userToken,
-          name,
-          description: playlistDescription(playlist.startYear, playlist.endYear),
+          name: appleName,
+          description: appleDescription,
           trackIds: matches.map((match) => match.catalogId),
         }),
       })
@@ -508,6 +533,7 @@ export function PlaylistDocument({
         setStatus(typeof body.addedCount === "number" ? `Apple Music kept ${body.addedCount} songs.` : "")
       } else {
         setPlaylistUrl(body.playlistUrl || "")
+        setAppleSaved({ name: appleName, description: appleDescription })
         const saved = body.addedCount ?? matches.length
         const missingNote =
           missed.length > 0
@@ -776,6 +802,16 @@ export function PlaylistDocument({
         >
           Open the saved playlist
         </a>
+      ) : null}
+      {appleSaved ? (
+        <LibraryCover
+          graduationYear={playlist.graduationYear}
+          startYear={playlist.startYear}
+          endYear={playlist.endYear}
+          hits={playlist.hits}
+          catalog={catalog}
+          description={appleSaved.description}
+        />
       ) : null}
       {shareUrl ? (
         <p className="quiet" style={{ marginTop: "0.45rem", overflowWrap: "anywhere" }}>
