@@ -1,13 +1,22 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
-import { themeForYear } from "@/lib/playlist/decade"
+import { AppleMusicBadge } from "@/components/apple-badge"
+import { SongDetail } from "@/components/song-detail"
+import { downloadFilename, playlistCsv, playlistText } from "@/lib/playlist/export"
 import { hitKey } from "@/lib/playlist/hits"
-import { tokens } from "@/lib/playlist/tokens"
-import type { BuiltPlaylist, MatchedTrack, ProviderAvailability, UnmatchedTrack } from "@/lib/playlist/types"
+import type {
+  BuiltPlaylist,
+  ChartHit,
+  MatchedTrack,
+  ProviderAvailability,
+  UnmatchedTrack,
+  YearChapter,
+} from "@/lib/playlist/types"
 import { playlistDescription } from "@/lib/playlist/window"
+import { appleLinkRel, withAppleAffiliate, type AffiliatePlacement } from "@/lib/affiliate"
 
 type LookupResult = {
   matches: MatchedTrack[]
@@ -16,28 +25,24 @@ type LookupResult = {
   needsAuth?: boolean
 }
 
-async function lookupProvider(
-  provider: "spotify" | "apple",
-  playlist: BuiltPlaylist,
-  intent: "preview" | "save",
-  onChunk?: (done: number, total: number) => void,
+async function lookupHits(
+  hits: ChartHit[],
+  onBatch?: (result: LookupResult) => void,
 ): Promise<LookupResult> {
   const matches: MatchedTrack[] = []
   const unmatched: UnmatchedTrack[] = []
-  const total = playlist.hits.length
-  for (let index = 0; index < total; index += 20) {
-    const slice = playlist.hits.slice(index, index + 20)
+  for (let index = 0; index < hits.length; index += 20) {
+    const slice = hits.slice(index, index + 20)
     const response = await fetch("/api/providers/match", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        provider,
-        intent,
         tracks: slice.map((hit) => ({
           key: hitKey(hit),
           title: hit.title,
           artist: hit.artist,
-          spotifyTrackId: hit.spotifyTrackId,
+          appleSongId: hit.appleSongId,
+          isrc: hit.isrc ?? null,
         })),
       }),
     })
@@ -47,7 +52,7 @@ async function lookupProvider(
     if (body.skipped) return { matches, unmatched, skipped: true }
     matches.push(...(body.matches ?? []))
     unmatched.push(...(body.unmatched ?? []))
-    onChunk?.(Math.min(index + slice.length, total), total)
+    if (body.matches && body.matches.length > 0) onBatch?.({ matches: body.matches, unmatched: [] })
   }
   return { matches, unmatched }
 }
@@ -68,146 +73,335 @@ function initials(title: string): string {
   return letters || "1"
 }
 
+function Cover({
+  hit,
+  art,
+  pending,
+  broken,
+  eager,
+  onError,
+}: {
+  hit: ChartHit
+  art: string | undefined
+  pending: boolean
+  broken: boolean
+  eager: boolean
+  onError: () => void
+}) {
+  if (art && !broken) {
+    return (
+      // Artwork hosts vary, so this stays a sized plain image.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={art}
+        alt=""
+        width={240}
+        height={240}
+        className="cover"
+        decoding="async"
+        loading={eager ? "eager" : "lazy"}
+        fetchPriority={eager ? "high" : "low"}
+        onError={onError}
+      />
+    )
+  }
+  return (
+    <span aria-hidden="true" className="cover cover-fallback">
+      {pending ? "" : initials(hit.title)}
+    </span>
+  )
+}
+
+function focusSibling(event: KeyboardEvent<HTMLButtonElement>) {
+  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return
+  const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")
+  if (!buttons) return
+  const index = [...buttons].indexOf(event.currentTarget)
+  const next = event.key === "ArrowRight" ? buttons[index + 1] : buttons[index - 1]
+  if (!next) return
+  event.preventDefault()
+  next.focus()
+}
+
+function YearBlock({
+  chapter,
+  catalog,
+  brokenArt,
+  browse,
+  eager,
+  onVisible,
+  onSelect,
+  onBroken,
+  playingKey,
+  onTogglePlay,
+  badgePlacement,
+  affiliateToken,
+}: {
+  chapter: YearChapter
+  catalog: Record<string, MatchedTrack | null>
+  brokenArt: Record<string, true>
+  browse: "list" | "covers"
+  eager: boolean
+  onVisible: (hits: ChartHit[]) => void
+  onSelect: (key: string) => void
+  onBroken: (key: string) => void
+  playingKey: string | null
+  onTogglePlay: (hit: ChartHit) => void
+  badgePlacement: AffiliatePlacement
+  affiliateToken: string | null
+}) {
+  const ref = useRef<HTMLElement>(null)
+  const hits = chapter.hits
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node || hits.length === 0) return
+    if (typeof IntersectionObserver === "undefined") {
+      onVisible(hits)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onVisible(hits)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: "480px 0px" },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hits, onVisible])
+
+  return (
+    <article ref={ref} id={`year-${chapter.year}`} className="year-block">
+      <div className="year-heading">
+        <h2>
+          {chapter.year} · {chapter.hits.length} {chapter.hits.length === 1 ? "hit" : "hits"}
+        </h2>
+      </div>
+      {browse === "covers" && chapter.hits.length > 0 ? (
+        <div className="cover-row" role="list" aria-label={`${chapter.year} albums`}>
+          {chapter.hits.map((hit) => {
+            const key = hitKey(hit)
+            const entry = catalog[key]
+            return (
+              <button
+                key={key}
+                type="button"
+                role="listitem"
+                className="cover-card"
+                onClick={() => onSelect(key)}
+                onKeyDown={focusSibling}
+              >
+                <Cover
+                  hit={hit}
+                  art={entry?.artworkUrl ?? undefined}
+                  pending={entry === undefined}
+                  broken={Boolean(brokenArt[key])}
+                  eager={eager}
+                  onError={() => onBroken(key)}
+                />
+                <span className="track-title">{hit.title}</span>
+                <span className="track-meta">{hit.artist}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+      {chapter.story.editorial ? <p className="story">{chapter.story.editorial}</p> : null}
+      <p className="story">{chapter.story.summary}</p>
+      {chapter.hits.length === 0 || browse === "covers" ? null : (
+        <ol className="tracks">
+          {chapter.hits.map((hit) => {
+            const key = hitKey(hit)
+            const entry = catalog[key]
+            const weeks = weeksLabel(hit.weeksAtNumberOne)
+            return (
+              <li key={key} className="track">
+                <button type="button" className="track-button" onClick={() => onSelect(key)}>
+                  <Cover
+                    hit={hit}
+                    art={entry?.artworkUrl ?? undefined}
+                    pending={entry === undefined}
+                    broken={Boolean(brokenArt[key])}
+                    eager={eager}
+                    onError={() => onBroken(key)}
+                  />
+                  <span className="track-copy">
+                    <span className="track-title">{hit.title}</span>
+                    <span className="track-meta">
+                      {hit.artist}
+                      {weeks ? ` · ${weeks}` : ""}
+                    </span>
+                  </span>
+                </button>
+                <div className="track-actions">
+                  <button
+                    type="button"
+                    className="track-play"
+                    aria-pressed={playingKey === key}
+                    disabled={!entry?.previewUrl}
+                    aria-label={
+                      playingKey === key
+                        ? `Pause preview of ${hit.title}`
+                        : `Play preview of ${hit.title}`
+                    }
+                    onClick={() => onTogglePlay(hit)}
+                  >
+                    {playingKey === key ? "Pause" : "Play"}
+                  </button>
+                  <AppleMusicBadge
+                    url={entry?.url}
+                    title={hit.title}
+                    artist={hit.artist}
+                    placement={badgePlacement}
+                    affiliateToken={affiliateToken}
+                  />
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </article>
+  )
+}
+
 export function PlaylistDocument({
   playlist,
   providers,
   mode,
-  autoSaveSpotify = false,
-  onAutoSaveConsumed,
+  affiliateToken = null,
+  openCollage = false,
 }: {
   playlist: BuiltPlaylist
   providers: ProviderAvailability
   mode: "builder" | "shared"
-  autoSaveSpotify?: boolean
-  onAutoSaveConsumed?: () => void
+  affiliateToken?: string | null
+  openCollage?: boolean
 }) {
   const [name, setName] = useState(playlist.title)
-  const [artwork, setArtwork] = useState<Record<string, string>>({})
+  const [catalog, setCatalog] = useState<Record<string, MatchedTrack | null>>({})
   const [brokenArt, setBrokenArt] = useState<Record<string, true>>({})
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [browse, setBrowse] = useState<"list" | "covers">("list")
+  const [canPlayFull, setCanPlayFull] = useState(false)
+  const requested = useRef(new Set<string>())
+  const generation = useRef(0)
+  const catalogRef = useRef(catalog)
+  catalogRef.current = catalog
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const [playlistUrl, setPlaylistUrl] = useState("")
-  const [shareUrl, setShareUrl] = useState(mode === "shared" ? "" : "")
+  const [shareUrl, setShareUrl] = useState("")
   const [unmatched, setUnmatched] = useState<UnmatchedTrack[]>([])
   const [busy, setBusy] = useState(false)
-  const [coverNote, setCoverNote] = useState("")
-  const autoSaveStarted = useRef(false)
+  const [playingKey, setPlayingKey] = useState<string | null>(null)
+  const [autoAdvance, setAutoAdvance] = useState(true)
+  const [collageOpen, setCollageOpen] = useState(openCollage)
+  const [CollageView, setCollageView] = useState<typeof import("@/components/cover-collage").CoverCollage | null>(null)
+  const previewAudio = useRef<HTMLAudioElement>(null)
+  const collageLinkRef = useRef<HTMLButtonElement>(null)
+  const seenPlaylist = useRef(playlist)
   const titleTag = mode === "shared" ? "h1" : "h2"
   const Title = titleTag
+  const badgePlacement: AffiliatePlacement = mode === "shared" ? "share-page" : "preview-badge"
 
   useEffect(() => {
+    generation.current += 1
     setName(playlist.title)
-    setArtwork({})
+    setCatalog({})
     setBrokenArt({})
+    setSelectedKey(null)
+    requested.current = new Set()
     setUnmatched([])
     setPlaylistUrl("")
     setShareUrl("")
     setError("")
     setStatus("")
+    setCanPlayFull(false)
+    setPlayingKey(null)
+    if (seenPlaylist.current !== playlist) {
+      seenPlaylist.current = playlist
+      setCollageOpen(false)
+    }
+    previewAudio.current?.pause()
   }, [playlist])
 
   useEffect(() => {
-    const provider = providers.spotifyCatalog ? "spotify" : providers.apple ? "apple" : null
-    if (!provider) return
+    if (!collageOpen || CollageView) return
     let cancelled = false
-    setCoverNote(provider === "spotify" ? "Adding album covers from Spotify." : "Adding album covers from Apple Music.")
-    void lookupProvider(provider, playlist, "preview", (done, total) => {
-      if (!cancelled) setCoverNote(`Adding album covers, ${done} of ${total}.`)
+    void import("@/components/cover-collage").then((mod) => {
+      if (!cancelled) setCollageView(() => mod.CoverCollage)
     })
-      .then((result) => {
-        if (cancelled || result.skipped || result.needsAuth) return
-        const next: Record<string, string> = {}
-        for (const match of result.matches) {
-          if (match.artworkUrl) next[match.key] = match.artworkUrl
-        }
-        setArtwork((current) => ({ ...current, ...next }))
-      })
-      .catch(() => {
-        if (!cancelled) setCoverNote("")
-      })
-      .finally(() => {
-        if (!cancelled) setCoverNote("")
-      })
     return () => {
       cancelled = true
     }
-  }, [playlist, providers.apple, providers.spotifyCatalog])
+  }, [CollageView, collageOpen])
 
-  async function saveSpotify() {
-    if (busy) return
-    setBusy(true)
-    setError("")
-    setStatus("Checking Spotify for these songs.")
-    setUnmatched([])
+  function rememberLookup(result: LookupResult) {
+    setCatalog((current) => {
+      const next = { ...current }
+      for (const match of result.matches) next[match.key] = match
+      for (const miss of result.unmatched) next[miss.key] = null
+      return next
+    })
+  }
+
+  const loadHits = useRef<(hits: ChartHit[]) => Promise<void>>(async () => {})
+  loadHits.current = async (hits: ChartHit[]) => {
+    const ticket = generation.current
+    const pending = hits.filter((hit) => {
+      const key = hitKey(hit)
+      if (requested.current.has(key)) return false
+      requested.current.add(key)
+      return true
+    })
+    if (pending.length === 0) return
     try {
-      const lookup = await lookupProvider("spotify", playlist, "save", (done, total) => {
-        setStatus(`Checking Spotify, ${done} of ${total}.`)
+      let result = await lookupHits(pending, (partial) => {
+        if (ticket !== generation.current) return
+        rememberLookup(partial)
       })
-      if (lookup.needsAuth) {
-        sessionStorage.setItem(
-          "ptm-draft",
-          JSON.stringify({ playlist, year: String(playlist.graduationYear), genres: playlist.genres }),
-        )
-        window.location.href = "/api/spotify/login?next=/"
+      if (ticket !== generation.current) return
+      if (result.skipped) {
+        for (const hit of pending) requested.current.delete(hitKey(hit))
         return
       }
-      const art: Record<string, string> = {}
-      for (const match of lookup.matches) {
-        if (match.artworkUrl) art[match.key] = match.artworkUrl
+      const failed = result.unmatched.filter((row) => row.reason === "search_failed")
+      if (failed.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 700))
+        if (ticket !== generation.current) return
+        const retryHits = pending.filter((hit) => failed.some((row) => row.key === hitKey(hit)))
+        const second = await lookupHits(retryHits, (partial) => {
+          if (ticket !== generation.current) return
+          rememberLookup(partial)
+        })
+        if (ticket !== generation.current) return
+        result = {
+          matches: [...result.matches, ...second.matches],
+          unmatched: [
+            ...result.unmatched.filter((row) => row.reason !== "search_failed"),
+            ...second.unmatched,
+          ],
+        }
       }
-      setArtwork((current) => ({ ...current, ...art }))
-      setUnmatched(lookup.unmatched)
-      if (lookup.matches.length === 0) {
-        setStatus("")
-        setError("None of these songs were found on Spotify.")
-        setBusy(false)
-        return
-      }
-      setStatus(`Saving ${lookup.matches.length} songs to Spotify.`)
-      const response = await fetch("/api/spotify/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          description: playlistDescription(playlist.startYear, playlist.endYear),
-          trackIds: lookup.matches.map((match) => match.catalogId),
-        }),
-      })
-      const body = (await response.json()) as {
-        ok?: boolean
-        error?: string
-        playlistUrl?: string | null
-        addedCount?: number
-        requestedCount?: number
-      }
-      if (response.status === 401) {
-        sessionStorage.setItem(
-          "ptm-draft",
-          JSON.stringify({ playlist, year: String(playlist.graduationYear), genres: playlist.genres }),
-        )
-        window.location.href = "/api/spotify/login?next=/"
-        return
-      }
-      if (!response.ok || !body.ok) {
-        setError(body.error || "Spotify could not save the playlist.")
-        setStatus(
-          typeof body.addedCount === "number"
-            ? `Spotify kept ${body.addedCount} of ${body.requestedCount ?? lookup.matches.length} songs.`
-            : "",
-        )
-      } else {
-        setPlaylistUrl(body.playlistUrl || "")
-        setStatus(
-          `Saved ${body.addedCount ?? lookup.matches.length} of ${playlist.hits.length} songs to a private Spotify playlist.`,
-        )
-      }
+      rememberLookup(result)
     } catch {
-      setError("Spotify could not be reached. Try again.")
-      setStatus("")
-    } finally {
-      setBusy(false)
+      if (ticket !== generation.current) return
+      for (const hit of pending) requested.current.delete(hitKey(hit))
     }
   }
+
+  useEffect(() => {
+    const first = playlist.years.filter((chapter) => chapter.hits.length > 0).slice(0, 3)
+    void loadHits.current(first.flatMap((chapter) => chapter.hits))
+  }, [playlist])
+
+  const onVisible = useRef((hits: ChartHit[]) => {
+    void loadHits.current(hits)
+  })
 
   async function saveApple() {
     if (busy) return
@@ -216,23 +410,46 @@ export function PlaylistDocument({
     setStatus("Checking Apple Music for these songs.")
     setUnmatched([])
     try {
-      const lookup = await lookupProvider("apple", playlist, "save", (done, total) => {
-        setStatus(`Checking Apple Music, ${done} of ${total}.`)
-      })
-      const art: Record<string, string> = {}
-      for (const match of lookup.matches) {
-        if (match.artworkUrl) art[match.key] = match.artworkUrl
-      }
-      setArtwork((current) => ({ ...current, ...art }))
-      setUnmatched(lookup.unmatched)
+      const known = catalogRef.current
+      const missing = playlist.hits.filter((hit) => !(hitKey(hit) in known))
+      const lookup = missing.length > 0 ? await lookupHits(missing) : { matches: [], unmatched: [] }
       if (lookup.skipped) {
-        setError("Apple Music is not set up on this site.")
+        setError("Apple Music is not set up on this site yet.")
         setStatus("")
         setBusy(false)
         return
       }
-      if (lookup.matches.length === 0) {
-        setError("None of these songs were found on Apple Music.")
+      rememberLookup(lookup)
+      const found = new Map<string, MatchedTrack>()
+      for (const hit of playlist.hits) {
+        const key = hitKey(hit)
+        const prior = known[key]
+        if (prior) found.set(key, prior)
+      }
+      for (const match of lookup.matches) found.set(match.key, match)
+      const matches = playlist.hits.flatMap((hit) => {
+        const match = found.get(hitKey(hit))
+        return match ? [match] : []
+      })
+      const misses = [
+        ...lookup.unmatched,
+        ...playlist.hits
+          .filter((hit) => known[hitKey(hit)] === null)
+          .map((hit) => ({
+            key: hitKey(hit),
+            title: hit.title,
+            artist: hit.artist,
+            reason: "not_in_catalog" as const,
+          })),
+      ]
+      setUnmatched(misses)
+      const missed = misses.filter((song) => song.reason === "not_in_catalog")
+      if (matches.length === 0) {
+        setError(
+          missed.length > 0
+            ? "Apple Music didn’t have these songs, so nothing was saved."
+            : "Apple Music could not be checked. Try again.",
+        )
         setStatus("")
         setBusy(false)
         return
@@ -240,7 +457,11 @@ export function PlaylistDocument({
       setStatus("Opening Apple Music so you can approve the playlist.")
       const tokenResponse = await fetch("/api/apple/token")
       if (!tokenResponse.ok) {
-        setError("Apple Music is not available right now.")
+        setError(
+          tokenResponse.status === 404
+            ? "Apple Music is not set up on this site yet."
+            : "Apple Music is not available right now.",
+        )
         setStatus("")
         setBusy(false)
         return
@@ -259,7 +480,8 @@ export function PlaylistDocument({
         app: { name: "Playlist Time Machine", build: "2.0.0" },
       })
       const userToken = await music.authorize()
-      setStatus(`Saving ${lookup.matches.length} songs to Apple Music.`)
+      setCanPlayFull(true)
+      setStatus(`Saving ${matches.length} songs to Apple Music.`)
       const response = await fetch("/api/apple/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -267,7 +489,7 @@ export function PlaylistDocument({
           userToken,
           name,
           description: playlistDescription(playlist.startYear, playlist.endYear),
-          trackIds: lookup.matches.map((match) => match.catalogId),
+          trackIds: matches.map((match) => match.catalogId),
         }),
       })
       const body = (await response.json()) as {
@@ -278,12 +500,15 @@ export function PlaylistDocument({
       }
       if (!response.ok || !body.ok) {
         setError(body.error || "Apple Music could not save the playlist.")
-        setStatus(
-          typeof body.addedCount === "number" ? `Apple Music kept ${body.addedCount} songs.` : "",
-        )
+        setStatus(typeof body.addedCount === "number" ? `Apple Music kept ${body.addedCount} songs.` : "")
       } else {
         setPlaylistUrl(body.playlistUrl || "")
-        setStatus(`Saved ${body.addedCount ?? lookup.matches.length} of ${playlist.hits.length} songs to Apple Music.`)
+        const saved = body.addedCount ?? matches.length
+        const missingNote =
+          missed.length > 0
+            ? ` ${missed.length} ${missed.length === 1 ? "song was" : "songs were"} not in Apple Music.`
+            : ""
+        setStatus(`Saved ${saved} of ${playlist.hits.length} songs to Apple Music.${missingNote}`)
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : ""
@@ -298,14 +523,16 @@ export function PlaylistDocument({
     }
   }
 
-  useEffect(() => {
-    if (!autoSaveSpotify || autoSaveStarted.current) return
-    autoSaveStarted.current = true
-    onAutoSaveConsumed?.()
-    void saveSpotify()
-    // The resume flag should start one save after Spotify returns.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSaveSpotify])
+  function downloadList(extension: "csv" | "txt") {
+    const contents = extension === "csv" ? playlistCsv(playlist.hits) : playlistText(playlist)
+    const blob = new Blob([contents], { type: extension === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = downloadFilename(name || playlist.title, extension)
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   async function share() {
     setError("")
@@ -326,7 +553,6 @@ export function PlaylistDocument({
     try {
       const result = await sharePlaylistAction({
         graduationYear: playlist.graduationYear,
-        genres: playlist.genres,
         title: name,
       })
       if (!result.ok) {
@@ -349,118 +575,211 @@ export function PlaylistDocument({
     }
   }
 
+  async function ensureSharePage(): Promise<string | null> {
+    if (mode === "shared") {
+      const url = new URL(window.location.href)
+      url.search = ""
+      url.hash = ""
+      return url.toString()
+    }
+    if (shareUrl) return shareUrl
+    try {
+      const result = await sharePlaylistAction({
+        graduationYear: playlist.graduationYear,
+        title: name,
+      })
+      if (!result.ok) return null
+      setShareUrl(result.url)
+      return result.url
+    } catch {
+      return null
+    }
+  }
+
   const notFoundLabel = unmatched.filter((song) => song.reason === "not_in_catalog")
   const failedLabel = unmatched.filter((song) => song.reason === "search_failed")
+  const selected = selectedKey ? (playlist.hits.find((hit) => hitKey(hit) === selectedKey) ?? null) : null
+  const eagerYears = new Set(
+    playlist.years
+      .filter((chapter) => chapter.hits.length > 0)
+      .slice(0, 3)
+      .map((chapter) => chapter.year),
+  )
+
+  useEffect(() => {
+    if (!selected) return
+    previewAudio.current?.pause()
+    setPlayingKey(null)
+    void loadHits.current([selected])
+  }, [selected])
+
+  function playPreview(hit: ChartHit) {
+    const key = hitKey(hit)
+    const preview = catalogRef.current[key]?.previewUrl
+    const audio = previewAudio.current
+    if (!preview || !audio) return
+    if (playingKey === key && !audio.paused) {
+      audio.pause()
+      setPlayingKey(null)
+      return
+    }
+    audio.src = preview
+    void audio.play().then(
+      () => setPlayingKey(key),
+      () => setPlayingKey(null),
+    )
+  }
+
+  function advancePreview() {
+    if (!autoAdvance || !playingKey) {
+      setPlayingKey(null)
+      return
+    }
+    const index = playlist.hits.findIndex((hit) => hitKey(hit) === playingKey)
+    for (let next = index + 1; next < playlist.hits.length; next += 1) {
+      const hit = playlist.hits[next]
+      if (!hit) continue
+      const preview = catalogRef.current[hitKey(hit)]?.previewUrl
+      const audio = previewAudio.current
+      if (!preview || !audio) continue
+      audio.src = preview
+      void audio.play().then(
+        () => setPlayingKey(hitKey(hit)),
+        () => setPlayingKey(null),
+      )
+      return
+    }
+    setPlayingKey(null)
+  }
 
   return (
-    <section id="playlist" aria-labelledby="playlist-title" className="mt-10 space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.16em]" style={{ color: tokens.burgundy }}>
-          {playlist.hits.length} No. 1 {playlist.hits.length === 1 ? "hit" : "hits"}
-        </p>
-        <Title id="playlist-title" className="display mt-2 text-4xl leading-tight sm:text-5xl" style={{ color: tokens.ink }}>
-          {mode === "shared" ? playlist.title : name || playlist.title}
-        </Title>
-        <p className="mt-3 text-base leading-relaxed" style={{ color: tokens.inkSoft }}>
-          {playlist.startYear} through {playlist.endYear}, in the order they topped the chart.
-          {playlist.genres.length > 0 ? ` Styles: ${playlist.genres.join(", ")}.` : " Every style is included."}
-        </p>
-      </div>
-
-      <div className="space-y-3 rounded-3xl p-4 sm:p-5" style={{ background: tokens.card, border: `1px solid ${tokens.line}` }}>
-        {mode === "builder" ? (
-          <div>
-            <label htmlFor="playlist-name" className="text-sm font-semibold" style={{ color: tokens.ink }}>
-              Playlist name
-            </label>
-            <input
-              id="playlist-name"
-              value={name}
-              onChange={(event) => setName(event.target.value.slice(0, 80))}
-              maxLength={80}
-              className="mt-2 w-full rounded-2xl border px-4 py-3 text-base"
-              style={{ borderColor: tokens.line, background: tokens.paper, color: tokens.ink }}
-            />
-          </div>
-        ) : null}
-
-        <div className="grid gap-3">
-          <button
-            type="button"
-            onClick={() => void saveSpotify()}
-            disabled={busy || !providers.spotify || playlist.hits.length === 0}
-            className="min-h-12 rounded-full px-5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ background: tokens.spotify, color: tokens.onSpotify }}
-          >
-            Save to Spotify
-          </button>
-          {!providers.spotify ? (
-            <p className="text-sm" style={{ color: tokens.inkSoft }}>
-              Spotify is not set up on this site yet.
-            </p>
-          ) : null}
-          {providers.apple ? (
-            <button
-              type="button"
-              onClick={() => void saveApple()}
-              disabled={busy || playlist.hits.length === 0}
-              className="min-h-12 rounded-full px-5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: tokens.apple, color: tokens.onApple }}
-            >
-              Save to Apple Music
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void share()}
-            disabled={busy || playlist.hits.length === 0}
-            className="min-h-12 rounded-full border px-5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ borderColor: tokens.ink, color: tokens.ink, background: "transparent" }}
-          >
-            Share
-          </button>
+    <section id="playlist" aria-labelledby="playlist-title" className="results">
+      <div className="playlist-head">
+        <Title id="playlist-title">{mode === "shared" ? playlist.title : name || playlist.title}</Title>
+        <div className="stat-row" aria-label="Playlist totals">
+          <span className="stat-chip">Class of {playlist.graduationYear}</span>
+          <span className="stat-chip">
+            {playlist.startYear}–{playlist.endYear}
+          </span>
+          <span className="stat-chip">
+            {playlist.hits.length} #1 {playlist.hits.length === 1 ? "hit" : "hits"}
+          </span>
         </div>
-
-        <p role="status" aria-live="polite" className="text-sm" style={{ color: tokens.inkSoft }}>
-          {coverNote || status}
-        </p>
-        {error ? (
-          <p role="alert" className="rounded-2xl px-4 py-3 text-sm" style={{ background: tokens.dangerWash, color: tokens.dangerInk }}>
-            {error}
-          </p>
-        ) : null}
-        {playlistUrl ? (
-          <a className="inline-block text-sm font-semibold underline" style={{ color: tokens.ink }} href={playlistUrl}>
-            Open the saved playlist
-          </a>
-        ) : null}
-        {shareUrl ? (
-          <p className="break-all text-sm">
-            <a href={shareUrl} style={{ color: tokens.ink }} className="font-semibold underline">
-              {shareUrl}
-            </a>
-          </p>
-        ) : null}
-        {notFoundLabel.length > 0 ? (
-          <details>
-            <summary className="cursor-pointer text-sm font-semibold">
-              {notFoundLabel.length} {notFoundLabel.length === 1 ? "song was" : "songs were"} not in the catalog
-            </summary>
-            <ul className="mt-2 space-y-1 text-sm" style={{ color: tokens.inkSoft }}>
-              {notFoundLabel.map((song) => (
-                <li key={song.key}>
-                  {song.title} by {song.artist}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-        {failedLabel.length > 0 ? (
-          <p className="text-sm" style={{ color: tokens.inkSoft }}>
-            {failedLabel.length} {failedLabel.length === 1 ? "song could" : "songs could"} not be checked. Try saving again.
-          </p>
-        ) : null}
+        <p className="summary">Every number one hit, in the order they reached the top.</p>
       </div>
+
+      {mode === "builder" ? (
+        <div style={{ marginTop: "1.5rem" }}>
+          <label htmlFor="playlist-name" className="field-label">
+            Playlist name
+          </label>
+          <input
+            id="playlist-name"
+            value={name}
+            onChange={(event) => setName(event.target.value.slice(0, 80))}
+            maxLength={80}
+            className="name-field"
+          />
+        </div>
+      ) : null}
+
+      <div className="actions">
+        <button
+          type="button"
+          onClick={() => void saveApple()}
+          disabled={busy || playlist.hits.length === 0}
+          className="btn btn-accent"
+        >
+          Save to Apple Music
+        </button>
+        <button type="button" onClick={() => void share()} disabled={busy || playlist.hits.length === 0} className="btn btn-ghost">
+          Share
+        </button>
+      </div>
+      <div className="download">
+        <span id="download-label">Download list</span>
+        <button
+          type="button"
+          aria-describedby="download-label"
+          disabled={playlist.hits.length === 0}
+          onClick={() => downloadList("txt")}
+        >
+          TXT
+        </button>
+        <button
+          type="button"
+          aria-describedby="download-label"
+          disabled={playlist.hits.length === 0}
+          onClick={() => downloadList("csv")}
+        >
+          CSV
+        </button>
+      </div>
+      <p className="collage-offer">
+        <button
+          ref={collageLinkRef}
+          type="button"
+          className="linkish"
+          data-collage-link
+          disabled={playlist.hits.length === 0}
+          onClick={() => {
+            performance.mark("collage-open")
+            setCollageOpen(true)
+          }}
+        >
+          Make a cover collage
+        </button>
+      </p>
+      {collageOpen && !CollageView ? (
+        <p role="status" className="quiet">
+          Opening the collage.
+        </p>
+      ) : null}
+
+      <p role="status" aria-live="polite" className="quiet" style={{ marginTop: "0.85rem" }}>
+        {status}
+      </p>
+      {error ? (
+        <p role="alert" className="alert">
+          {error}
+        </p>
+      ) : null}
+      {playlistUrl ? (
+        <a
+          className="linkish"
+          href={withAppleAffiliate(playlistUrl, "save-flow", affiliateToken)}
+          target="_blank"
+          rel={appleLinkRel(affiliateToken)}
+        >
+          Open the saved playlist
+        </a>
+      ) : null}
+      {shareUrl ? (
+        <p className="quiet" style={{ marginTop: "0.45rem", overflowWrap: "anywhere" }}>
+          <a href={shareUrl} className="linkish">
+            {shareUrl}
+          </a>
+        </p>
+      ) : null}
+      {notFoundLabel.length > 0 ? (
+        <details className="details">
+          <summary>
+            {notFoundLabel.length} {notFoundLabel.length === 1 ? "song was" : "songs were"} not in the catalog
+          </summary>
+          <ul style={{ marginTop: "0.5rem" }}>
+            {notFoundLabel.map((song) => (
+              <li key={song.key}>
+                {song.title} by {song.artist}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {failedLabel.length > 0 ? (
+        <p className="quiet" style={{ marginTop: "0.45rem" }}>
+          {failedLabel.length} {failedLabel.length === 1 ? "song could" : "songs could"} not be checked. Try saving again.
+        </p>
+      ) : null}
 
       <nav aria-label="Years in this playlist" className="year-jump">
         {playlist.years.map((chapter) => (
@@ -470,66 +789,72 @@ export function PlaylistDocument({
         ))}
       </nav>
 
-      <div className="space-y-5">
-        {playlist.years.map((chapter) => {
-          const theme = themeForYear(chapter.year)
-          return (
-            <article
-              key={chapter.year}
-              id={`year-${chapter.year}`}
-              className="scroll-mt-4 rounded-3xl p-4 sm:p-5"
-              style={{ background: theme.wash, color: theme.ink, boxShadow: `inset 6px 0 0 ${theme.stripe}` }}
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <h3 className="display text-4xl">{chapter.year}</h3>
-                <p className="text-sm font-semibold">
-                  {theme.label} · {chapter.hits.length} No. 1{chapter.hits.length === 1 ? "" : "s"}
-                </p>
-              </div>
-              {chapter.story.editorial ? <p className="mt-3 text-base leading-relaxed">{chapter.story.editorial}</p> : null}
-              <p className="mt-3 text-base leading-relaxed">{chapter.story.summary}</p>
-              {chapter.hits.length > 0 ? (
-                <ol className="mt-4 divide-y" style={{ borderColor: theme.stripe }}>
-                  {chapter.hits.map((hit) => {
-                    const key = hitKey(hit)
-                    const art = artwork[key]
-                    const weeks = weeksLabel(hit.weeksAtNumberOne)
-                    return (
-                      <li key={key} className="flex items-center gap-3 py-3">
-                        {art && !brokenArt[key] ? (
-                          // Provider artwork hosts vary, so this stays a plain image.
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={art}
-                            alt=""
-                            width={56}
-                            height={56}
-                            className="cover"
-                            onError={() => setBrokenArt((current) => ({ ...current, [key]: true }))}
-                          />
-                        ) : (
-                          <span
-                            aria-hidden="true"
-                            className="cover inline-flex items-center justify-center text-sm font-semibold"
-                            style={{ background: theme.stripe, color: "#fffdf8" }}
-                          >
-                            {initials(hit.title)}
-                          </span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold leading-tight">{hit.title}</p>
-                          <p className="truncate text-sm leading-tight">{hit.artist}</p>
-                          {weeks ? <p className="text-xs leading-tight">{weeks}</p> : null}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ol>
-              ) : null}
-            </article>
-          )
-        })}
+      <div className="view-toggle" role="group" aria-label="How to browse songs">
+        <button type="button" aria-pressed={browse === "list"} onClick={() => setBrowse("list")}>
+          List
+        </button>
+        <button type="button" aria-pressed={browse === "covers"} onClick={() => setBrowse("covers")}>
+          Covers
+        </button>
+        <button type="button" aria-pressed={autoAdvance} onClick={() => setAutoAdvance((current) => !current)}>
+          {autoAdvance ? "Next preview: on" : "Next preview: off"}
+        </button>
       </div>
+      <audio ref={previewAudio} preload="none" onEnded={advancePreview} />
+      <p className="courtesy">Preview provided courtesy of Apple.</p>
+
+      <div>
+        {playlist.years.map((chapter) => (
+          <YearBlock
+            key={chapter.year}
+            chapter={chapter}
+            catalog={catalog}
+            brokenArt={brokenArt}
+            browse={browse}
+            eager={eagerYears.has(chapter.year)}
+            onVisible={onVisible.current}
+            onSelect={setSelectedKey}
+            onBroken={(key) => setBrokenArt((current) => ({ ...current, [key]: true }))}
+            playingKey={playingKey}
+            onTogglePlay={playPreview}
+            badgePlacement={badgePlacement}
+            affiliateToken={affiliateToken}
+          />
+        ))}
+      </div>
+
+      {selected ? (
+        <SongDetail
+          key={selectedKey ?? undefined}
+          hit={selected}
+          match={selectedKey ? catalog[selectedKey] : undefined}
+          canPlayFull={canPlayFull}
+          affiliateToken={affiliateToken}
+          placement={badgePlacement}
+          onClose={() => setSelectedKey(null)}
+          onPreview={() => {
+            previewAudio.current?.pause()
+            setPlayingKey(null)
+          }}
+        />
+      ) : null}
+      {CollageView && collageOpen ? (
+        <CollageView
+          hits={playlist.hits}
+          title={name.trim() || playlist.title}
+          startYear={playlist.startYear}
+          endYear={playlist.endYear}
+          catalog={catalog}
+          onRequestCovers={(rows) => {
+            void loadHits.current(rows)
+          }}
+          onEnsureShareUrl={ensureSharePage}
+          onClose={() => {
+            setCollageOpen(false)
+            collageLinkRef.current?.focus()
+          }}
+        />
+      ) : null}
     </section>
   )
 }

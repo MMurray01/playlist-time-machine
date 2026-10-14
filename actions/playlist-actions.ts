@@ -1,32 +1,38 @@
 "use server"
 
-import { loadBuiltPlaylist } from "@/lib/server/chart"
+import { getChartYearSpan, loadBuiltPlaylist } from "@/lib/server/chart"
 import { createSharedPlaylist } from "@/lib/server/share"
 import type { BuiltPlaylist } from "@/lib/playlist/types"
-import { cleanPlaylistTitle, isValidGraduationYear } from "@/lib/playlist/window"
-
-function cleanGenres(genres: string[]): string[] {
-  return [...new Set(genres.map((genre) => genre.trim()).filter(Boolean))].slice(0, 12)
-}
+import {
+  cleanPlaylistTitle,
+  emptyChartMessage,
+  graduationYearLimits,
+  graduationYearMessage,
+  isValidGraduationYear,
+} from "@/lib/playlist/window"
 
 export async function generatePlaylistAction(
   graduationYear: number,
-  genres: string[],
 ): Promise<{ ok: true; playlist: BuiltPlaylist } | { ok: false; error: string }> {
-  if (!isValidGraduationYear(graduationYear)) {
-    return { ok: false, error: "Enter a graduation year from 1955 through 2035." }
+  const span = await getChartYearSpan()
+  const limits = graduationYearLimits({ chartMinYear: span.minYear, chartMaxYear: span.maxYear })
+  if (!isValidGraduationYear(graduationYear, limits)) {
+    return { ok: false, error: graduationYearMessage(graduationYear, limits) }
   }
-  return loadBuiltPlaylist({ graduationYear, genres: cleanGenres(genres) })
+  const result = await loadBuiltPlaylist({ graduationYear, genres: [] })
+  if (result.ok && result.playlist.hits.length === 0) {
+    return { ok: false, error: emptyChartMessage(graduationYear) }
+  }
+  return result
 }
 
 export async function sharePlaylistAction(input: {
   graduationYear: number
-  genres: string[]
   title: string
 }): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
   return createSharedPlaylist({
     graduationYear: input.graduationYear,
-    genres: cleanGenres(input.genres),
+    genres: [],
     title: cleanPlaylistTitle(input.title, input.graduationYear),
   })
 }

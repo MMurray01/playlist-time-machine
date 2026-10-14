@@ -15,22 +15,40 @@ interface AppleSongJson {
     artistName?: string
     url?: string
     artwork?: { url?: string }
+    previews?: { url?: string }[]
   }
 }
 
-export function appleArtworkUrl(template: string | undefined): string | null {
+/** List covers stay small. The song detail asks for a larger file from the same template. */
+export const ARTWORK_LIST_SIZE = 240
+export const ARTWORK_DETAIL_SIZE = 800
+
+export function appleArtworkUrl(template: string | undefined, size = ARTWORK_LIST_SIZE): string | null {
   if (!template) return null
-  return template.replace("{w}", "300").replace("{h}", "300").replace("{f}", "jpg")
+  return template.replace("{w}", String(size)).replace("{h}", String(size)).replace("{f}", "jpg")
+}
+
+function httpsUrl(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" ? url.toString() : null
+  } catch {
+    return null
+  }
 }
 
 export function appleSongToCandidate(song: AppleSongJson): CatalogCandidate | null {
   if (!song.id || !song.attributes?.name) return null
+  const template = song.attributes.artwork?.url
   return {
     id: song.id,
     title: song.attributes.name,
     artist: song.attributes.artistName ?? "",
-    artworkUrl: appleArtworkUrl(song.attributes.artwork?.url),
-    url: song.attributes.url ?? null,
+    artworkUrl: appleArtworkUrl(template, ARTWORK_LIST_SIZE),
+    artworkLargeUrl: appleArtworkUrl(template, ARTWORK_DETAIL_SIZE),
+    previewUrl: httpsUrl(song.attributes.previews?.find((preview) => preview.url)?.url),
+    url: httpsUrl(song.attributes.url),
   }
 }
 
@@ -43,8 +61,52 @@ function appleHeaders(developerToken: string, userToken?: string): Record<string
   return headers
 }
 
+const APPLE_SONG_ID = /^[0-9]{2,18}$/
+
+function songsFrom(body: { data?: AppleSongJson[]; results?: { songs?: { data?: AppleSongJson[] } } }): CatalogCandidate[] {
+  const rows = body.data ?? body.results?.songs?.data ?? []
+  return rows
+    .map(appleSongToCandidate)
+    .filter((candidate): candidate is CatalogCandidate => candidate != null)
+}
+
+export async function searchAppleMusicSongs(
+  fetchImpl: typeof fetch,
+  developerToken: string,
+  input: { term?: string; isrc?: string; storefront?: string; limit?: number },
+): Promise<CatalogCandidate[]> {
+  const storefront = input.storefront ?? "us"
+  const headers = appleHeaders(developerToken)
+  const url = input.isrc
+    ? `https://api.music.apple.com/v1/catalog/${storefront}/songs?${new URLSearchParams({ "filter[isrc]": input.isrc })}`
+    : `https://api.music.apple.com/v1/catalog/${storefront}/search?${new URLSearchParams({
+        term: input.term ?? "",
+        types: "songs",
+        limit: String(input.limit ?? 5),
+      })}`
+  const response = await fetchImpl(url, { headers })
+  if (!response.ok) throw new Error(`apple_search_${response.status}`)
+  return songsFrom((await response.json()) as { data?: AppleSongJson[]; results?: { songs?: { data?: AppleSongJson[] } } })
+}
+
 export function createAppleSearcher(fetchImpl: typeof fetch, developerToken: string, storefront = "us") {
-  return async (hit: { title: string; artist: string }): Promise<CatalogCandidate[]> => {
+  return async (hit: { title: string; artist: string; appleSongId?: string | null }): Promise<CatalogCandidate[]> => {
+    const headers = appleHeaders(developerToken)
+    const found: CatalogCandidate[] = []
+    const storedId = hit.appleSongId && APPLE_SONG_ID.test(hit.appleSongId) ? hit.appleSongId : null
+
+    if (storedId) {
+      const direct = await fetchImpl(`https://api.music.apple.com/v1/catalog/${storefront}/songs/${storedId}`, {
+        headers,
+      })
+      if (direct.status === 401 || direct.status === 403) throw new Error(`apple_search_${direct.status}`)
+      if (direct.ok) {
+        found.push(...songsFrom((await direct.json()) as { data?: AppleSongJson[] }))
+      } else if (direct.status !== 404) {
+        throw new Error(`apple_search_${direct.status}`)
+      }
+    }
+
     const params = new URLSearchParams({
       term: `${hit.title} ${hit.artist}`,
       types: "songs",
@@ -52,15 +114,21 @@ export function createAppleSearcher(fetchImpl: typeof fetch, developerToken: str
     })
     const response = await fetchImpl(
       `https://api.music.apple.com/v1/catalog/${storefront}/search?${params.toString()}`,
-      { headers: appleHeaders(developerToken) },
+      { headers },
     )
-    if (!response.ok) throw new Error(`apple_search_${response.status}`)
-    const body = (await response.json()) as {
-      results?: { songs?: { data?: AppleSongJson[] } }
+    if (!response.ok) {
+      if (found.length > 0) return found
+      throw new Error(`apple_search_${response.status}`)
     }
-    return (body.results?.songs?.data ?? [])
-      .map(appleSongToCandidate)
-      .filter((candidate): candidate is CatalogCandidate => candidate != null)
+    const searched = songsFrom(
+      (await response.json()) as { results?: { songs?: { data?: AppleSongJson[] } } },
+    )
+    const seen = new Set<string>()
+    return [...found, ...searched].filter((candidate) => {
+      if (seen.has(candidate.id)) return false
+      seen.add(candidate.id)
+      return true
+    })
   }
 }
 

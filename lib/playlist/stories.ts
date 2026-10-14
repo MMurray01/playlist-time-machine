@@ -40,44 +40,55 @@ export function collectYearFacts(year: number, hits: ChartHit[]): YearFacts {
   }
 }
 
-export function describeYear(facts: YearFacts): string {
+function holdPhrase(run: { title: string; artist: string }, weeks: number): string {
+  const weekWord = weeks === 1 ? "week" : "weeks"
+  return `${run.title} by ${run.artist} holds No. 1 for ${weeks} ${weekWord}`
+}
+
+/**
+ * One scene built only from the rows: who opens the year, who holds No. 1
+ * the longest, and who has the most No. 1s. It does not add outside history.
+ */
+export function describeYear(
+  facts: YearFacts,
+  opener?: { title: string; artist: string } | null,
+): string {
   if (facts.hitCount === 0) {
     return `${facts.year} has no No. 1 hits in the chart library.`
   }
 
-  const reached = facts.hitCount === 1 ? "1 song reached" : `${facts.hitCount} songs reached`
-  const parts = [`${facts.year}: ${reached} No. 1.`]
-
-  if (facts.longestRuns.length > 0) {
-    const weeks = facts.longestRuns[0].weeks
-    const weekWord = weeks === 1 ? "week" : "weeks"
-    if (weeks <= 1 && facts.longestRuns.length > 3) {
-      parts.push("No song is listed with more than 1 week at No. 1.")
-    } else {
-      const named = facts.longestRuns.slice(0, 3).map((run) => `${run.title} by ${run.artist}`)
-      const extra = facts.longestRuns.length - named.length
-      const names = `${joinNames(named)}${extra > 0 ? ` and ${extra} more` : ""}`
-      if (named.length === 1 && extra === 0) {
-        parts.push(`${names} leads this year in the chart library, with ${weeks} ${weekWord} at No. 1.`)
-      } else {
-        parts.push(`${names} share the longest run, ${weeks} ${weekWord} at No. 1.`)
-      }
-    }
+  const leaders = facts.longestRuns
+  if (leaders.length === 0) {
+    const count = facts.hitCount === 1 ? "one song reaches" : `${facts.hitCount} songs reach`
+    return `In ${facts.year}, ${count} No. 1.`
   }
+
+  const weeks = leaders[0]!.weeks
+  const named = leaders.slice(0, 2)
+  const extra = leaders.length - named.length
+  const lead =
+    named.length === 1
+      ? holdPhrase(named[0]!, weeks)
+      : `${named.map((run) => `${run.title} by ${run.artist}`).join(" and ")} each hold No. 1 for ${weeks} ${weeks === 1 ? "week" : "weeks"}`
+  const ending = named.length === 1 ? "the longest run of the year" : "the longest runs of the year"
+  const more = extra > 0 ? `, along with ${extra} more,` : ","
+  const opens =
+    opener && !named.some((run) => run.title === opener.title && run.artist === opener.artist)
+      ? ` The year opens with ${opener.title} by ${opener.artist}.`
+      : ""
 
   const topCount = facts.topArtists[0]?.hitCount ?? 0
+  let artistLine = ""
   if (topCount >= 2) {
-    const leaders = facts.topArtists.filter((artist) => artist.hitCount === topCount).slice(0, 3)
-    const names = joinNames(leaders.map((artist) => artist.artist))
-    const hitWord = topCount === 1 ? "1 No. 1" : `${topCount} No. 1s`
-    if (leaders.length === 1) {
-      parts.push(`${names} had the most No. 1s, with ${hitWord}.`)
-    } else {
-      parts.push(`${names} each had ${hitWord}.`)
-    }
+    const top = facts.topArtists.filter((artist) => artist.hitCount === topCount).slice(0, 2)
+    const names = joinNames(top.map((artist) => artist.artist))
+    artistLine =
+      top.length === 1
+        ? ` ${names} has ${topCount} No. 1s.`
+        : ` ${names} each have ${topCount} No. 1s.`
   }
 
-  return parts.join(" ")
+  return `In ${facts.year}, ${lead}${more} ${ending}.${opens}${artistLine}`
 }
 
 export function deriveYearStory(year: number, hits: ChartHit[], editorial: string | null = null): YearStory {
@@ -87,7 +98,7 @@ export function deriveYearStory(year: number, hits: ChartHit[], editorial: strin
     year,
     decade: decadeOf(year),
     facts,
-    summary: describeYear(facts),
+    summary: describeYear(facts, hits[0] ? { title: hits[0].title, artist: hits[0].artist } : null),
     editorial: note,
   }
 }

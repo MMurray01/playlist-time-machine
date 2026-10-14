@@ -7,6 +7,22 @@ export function hitKey(hit: Pick<ChartHit, "songId" | "title" | "artist" | "year
   return hit.songId != null ? `song:${hit.songId}` : `${hit.year}:${hit.title}:${hit.artist}`
 }
 
+const APPLE_SONG_ID = /^[0-9]{2,18}$/
+
+function appleSongIdFrom(row: Record<string, unknown>): string | null {
+  for (const key of ["apple_song_id", "apple_music_id"]) {
+    const value = row[key]
+    if (typeof value === "string" && APPLE_SONG_ID.test(value.trim())) return value.trim()
+  }
+  return null
+}
+
+function isrcFrom(row: Record<string, unknown>): string | null {
+  const value = row.isrc
+  if (typeof value === "string" && /^[A-Za-z0-9]{12}$/.test(value.trim())) return value.trim().toUpperCase()
+  return null
+}
+
 function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string" && value.trim() !== "") {
@@ -34,10 +50,8 @@ export function mapHitRow(row: Record<string, unknown>): ChartHit | null {
     title,
     artist,
     genre: typeof row.genre === "string" ? row.genre.trim() : "",
-    spotifyTrackId:
-      typeof row.spotify_track_id === "string" && row.spotify_track_id.trim()
-        ? row.spotify_track_id.trim()
-        : null,
+    appleSongId: appleSongIdFrom(row),
+    isrc: isrcFrom(row),
     weeksAtNumberOne: weeks,
   }
 }
@@ -108,7 +122,8 @@ export function buildPlaylist(input: {
   const years = []
 
   for (let year = window.startYear; year <= window.endYear; year += 1) {
-    const yearHits = hits.filter((hit) => hit.year === year)
+    const yearHits = orderHits(hits.filter((hit) => hit.year === year))
+    if (yearHits.length === 0) continue
     years.push({
       year,
       hits: yearHits,

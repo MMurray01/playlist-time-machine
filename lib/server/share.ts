@@ -5,7 +5,13 @@ import { headers } from "next/headers"
 import { isMissingColumnError } from "@/lib/playlist/errors"
 import { createShareId, isShareId } from "@/lib/playlist/ids"
 import type { BuiltPlaylist } from "@/lib/playlist/types"
-import { cleanPlaylistTitle, defaultPlaylistTitle, isValidGraduationYear } from "@/lib/playlist/window"
+import {
+  cleanPlaylistTitle,
+  defaultPlaylistTitle,
+  graduationYearLimits,
+  graduationYearMessage,
+  isValidGraduationYear,
+} from "@/lib/playlist/window"
 import { loadBuiltPlaylist } from "@/lib/server/chart"
 import { createReadClient, createWriteClient } from "@/lib/server/supabase"
 
@@ -22,8 +28,9 @@ export async function createSharedPlaylist(input: {
   genres: string[]
   title: string
 }): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
-  if (!isValidGraduationYear(input.graduationYear)) {
-    return { ok: false, error: "Enter a graduation year from 1955 through 2035." }
+  const limits = graduationYearLimits()
+  if (!isValidGraduationYear(input.graduationYear, limits)) {
+    return { ok: false, error: graduationYearMessage(input.graduationYear, limits) }
   }
 
   const client = createWriteClient()
@@ -93,9 +100,6 @@ export const getSharedPlaylistPage = cache(async (id: string): Promise<SharedPla
     return { ok: false, reason: "not_found" }
   }
 
-  const genres = Array.isArray(result.data.genres)
-    ? result.data.genres.filter((genre): genre is string => typeof genre === "string")
-    : []
   const storedTitle = "title" in result.data && typeof result.data.title === "string" ? result.data.title : ""
   const title = storedTitle.trim()
     ? cleanPlaylistTitle(storedTitle, result.data.graduation_year)
@@ -103,7 +107,7 @@ export const getSharedPlaylistPage = cache(async (id: string): Promise<SharedPla
 
   const loaded = await loadBuiltPlaylist({
     graduationYear: result.data.graduation_year,
-    genres,
+    genres: [],
     title,
   })
   if (!loaded.ok) return { ok: false, reason: "unavailable" }
