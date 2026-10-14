@@ -30,7 +30,7 @@ const theme = {
 export const metadata: Metadata = {
   title: "Playlist Time Machine",
   description:
-    "Enter your high school graduation year and get every Billboard No. 1 from the eleven years that shaped you.",
+    "Enter your high school graduation year and get the number one hits from the eleven years that shaped you, the popular songs of the time.",
 }
 
 export default function RootLayout({

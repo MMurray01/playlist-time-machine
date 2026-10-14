@@ -67,7 +67,7 @@ export function defaultPlaylistTitle(graduationYear: number): string {
 }
 
 export function playlistDescription(startYear: number, endYear: number): string {
-  return `Billboard Hot 100 No. 1s from ${startYear} through ${endYear}, in chart order. Made with Playlist Time Machine.`
+  return `Number one hits from ${startYear} through ${endYear}, the popular songs of the time. Made with Playlist Time Machine.`
 }
 
 export function clipTitle(value: string): string {

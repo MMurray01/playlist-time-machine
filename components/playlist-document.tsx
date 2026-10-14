@@ -613,7 +613,7 @@ export function PlaylistDocument({
             {playlist.hits.length} #1 {playlist.hits.length === 1 ? "hit" : "hits"}
           </span>
         </div>
-        <p className="summary">Every Hot 100 No. 1, in chart order.</p>
+        <p className="summary">Every number one hit, in the order they reached the top.</p>
       </div>
 
       {mode === "builder" ? (

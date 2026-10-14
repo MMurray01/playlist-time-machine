@@ -44,7 +44,7 @@ export default function PrivacyPage() {
       <h2>How we use Apple Music</h2>
       <p>When you save a playlist, we use the Apple Music API and MusicKit JS only to:</p>
       <ul>
-        <li>Search for songs that match the Billboard No. 1s from your graduation window.</li>
+        <li>Search for songs that match the number one hits from your graduation window.</li>
         <li>Create a playlist in your Apple Music library with your permission.</li>
         <li>Add the matched songs to that playlist.</li>
       </ul>

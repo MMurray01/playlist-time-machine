@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const origin = await requestOrigin()
   const canonical = origin ? `${origin}/p/${id}` : `/p/${id}`
   const title = `${page.playlist.title} · Playlist Time Machine`
-  const description = `Every Billboard Hot 100 No. 1 from ${page.playlist.startYear} through ${page.playlist.endYear}. ${page.playlist.hits.length} songs, in chart order.`
+  const description = `Number one hits from ${page.playlist.startYear} through ${page.playlist.endYear}, the popular songs of the time. ${page.playlist.hits.length} songs, in the order they reached the top.`
   return {
     title,
     description,

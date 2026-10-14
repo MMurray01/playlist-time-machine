@@ -40,7 +40,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const title = page.ok ? page.playlist.title : "Playlist Time Machine"
   const detail = page.ok
     ? `${page.playlist.hits.length} No. 1 hits · ${page.playlist.startYear}–${page.playlist.endYear}`
-    : "Billboard Hot 100 No. 1s"
+    : "Number one hits"
   const covers = page.ok ? await topCovers(page.playlist.hits) : []
 
   return new ImageResponse(

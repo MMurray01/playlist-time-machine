@@ -23,11 +23,6 @@ export function SiteFooter() {
       <p className="attribution">
         Apple and Apple Music are trademarks of Apple Inc., registered in the U.S. and other countries.
       </p>
-      <p className="attribution">
-        Billboard and Billboard Hot 100 are trademarks of Billboard Media, LLC. The dates and weeks on this site are
-        drawn from public lists of Hot 100 number ones. Playlist Time Machine is not affiliated with, endorsed by, or
-        sponsored by Billboard.
-      </p>
     </footer>
   )
 }

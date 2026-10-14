@@ -22,9 +22,9 @@ export default function TermsPage() {
       </p>
       <h2>Description of the service</h2>
       <p>
-        Playlist Time Machine is a free web application that builds a playlist of Billboard Hot 100 No. 1s from the
-        years around a high school graduation year (five years before through five years after). You can save that
-        playlist to Apple Music, or download a list of the artist, song, and year.
+        Playlist Time Machine is a free web application that builds a playlist of number one hits, the popular songs
+        of the time, from the years around a high school graduation year (five years before through five years after).
+        You can save that playlist to Apple Music, or download a list of the artist, song, and year.
       </p>
       <h2>Use of the service</h2>
       <p>You agree to use the Service only for lawful purposes and in accordance with these Terms. You agree not to:</p>
@@ -47,8 +47,8 @@ export default function TermsPage() {
       <h2>Intellectual property</h2>
       <p>
         The Service and its original content, features, and functionality are owned by abeba co LLC and are protected
-        by copyright, trademark, and other intellectual property laws. Billboard chart data is used for informational
-        purposes. Song titles, artist names, and recordings belong to their respective owners.
+        by copyright, trademark, and other intellectual property laws. Lists of number one hits are used for
+        informational purposes. Song titles, artist names, and recordings belong to their respective owners.
       </p>
       <h2>Disclaimer of warranties</h2>
       <p>

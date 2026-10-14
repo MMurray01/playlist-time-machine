@@ -1,6 +1,6 @@
 # Playlist Time Machine
 
-Playlist Time Machine turns a high school graduation year into every Billboard Hot 100 No. 1 from the five years before that year through the five years after. The songs stay in chart order. Nothing is filled in from a hardcoded list.
+Playlist Time Machine turns a high school graduation year into the number one hits from the five years before that year through the five years after, the popular songs of the time. The songs stay in the order they reached the top. Nothing is filled in from a hardcoded list.
 
 ## Run it
 
