@@ -1,15 +1,14 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AppleMusicBadge } from "@/components/apple-badge"
 import type { AffiliatePlacement } from "@/lib/affiliate"
 import { hitKey } from "@/lib/playlist/hits"
 import type { ChartHit, MatchedTrack } from "@/lib/playlist/types"
 
 export function CoverFlow({
+  year,
   hits,
-  index,
-  onIndex,
   catalog,
   brokenArt,
   playingKey,
@@ -18,10 +17,10 @@ export function CoverFlow({
   onNeed,
   affiliateToken,
   placement,
+  priority = false,
 }: {
+  year: number
   hits: ChartHit[]
-  index: number
-  onIndex: (index: number) => void
   catalog: Record<string, MatchedTrack | null>
   brokenArt: Record<string, true>
   playingKey: string | null
@@ -30,12 +29,15 @@ export function CoverFlow({
   onNeed: (hits: ChartHit[]) => void
   affiliateToken: string | null
   placement: AffiliatePlacement
+  priority?: boolean
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const indexRef = useRef(index)
+  const [index, setIndex] = useState(0)
+  const indexRef = useRef(0)
   const frame = useRef<number | null>(null)
   const lock = useRef(0)
-  const current = hits[index] ?? hits[0]
+  const safeIndex = Math.min(index, Math.max(hits.length - 1, 0))
+  const current = hits[safeIndex] ?? hits[0]
   const currentKey = current ? hitKey(current) : ""
 
   function scrollTo(next: number) {
@@ -58,15 +60,14 @@ export function CoverFlow({
   }, [index])
 
   useEffect(() => {
-    const start = Math.max(0, index - 1)
-    onNeed(hits.slice(start, Math.min(hits.length, index + 4)))
-  }, [hits, index, onNeed])
+    onNeed(hits)
+  }, [hits, onNeed])
 
   useEffect(() => {
     if (!playingKey) return
     const next = hits.findIndex((hit) => hitKey(hit) === playingKey)
-    if (next >= 0 && next !== indexRef.current) onIndex(next)
-  }, [hits, onIndex, playingKey])
+    if (next >= 0 && next !== indexRef.current) setIndex(next)
+  }, [hits, playingKey])
 
   function readIndex() {
     const scroller = scrollerRef.current
@@ -85,7 +86,7 @@ export function CoverFlow({
     })
     if (best !== indexRef.current) {
       indexRef.current = best
-      onIndex(best)
+      setIndex(best)
     }
   }
 
@@ -98,7 +99,7 @@ export function CoverFlow({
     const clamped = Math.max(0, Math.min(hits.length - 1, next))
     if (clamped === indexRef.current) return
     indexRef.current = clamped
-    onIndex(clamped)
+    setIndex(clamped)
     scrollTo(clamped)
   }
 
@@ -107,18 +108,19 @@ export function CoverFlow({
 
   return (
     <div
-      id="cover-flow"
+      id={`cover-flow-${year}`}
       className="flow"
+      data-flow-year={year}
       role="region"
       aria-roledescription="carousel"
-      aria-label="Cover Flow"
+      aria-label={`Cover Flow for ${year}`}
       onKeyDown={(event) => {
         if (event.key === "ArrowRight") {
           event.preventDefault()
-          move(index + 1)
+          move(safeIndex + 1)
         } else if (event.key === "ArrowLeft") {
           event.preventDefault()
-          move(index - 1)
+          move(safeIndex - 1)
         }
       }}
     >
@@ -126,9 +128,9 @@ export function CoverFlow({
         <button
           type="button"
           className="flow-nav prev"
-          aria-label="Previous song"
-          disabled={index <= 0}
-          onClick={() => move(index - 1)}
+          aria-label={`Previous song in ${year}`}
+          disabled={safeIndex <= 0}
+          onClick={() => move(safeIndex - 1)}
         >
           <span aria-hidden="true">‹</span>
         </button>
@@ -137,18 +139,29 @@ export function CoverFlow({
             const key = hitKey(hit)
             const art = catalog[key]
             const showArt = Boolean(art?.artworkUrl) && !brokenArt[key]
+            const delta = slideIndex - safeIndex
+            const distance = Math.max(-3, Math.min(3, delta))
+            const near = Math.abs(delta) <= 3
             return (
-              <div key={key} className="flow-slide" data-flow-slide data-active={slideIndex === index ? "true" : "false"}>
+              <div
+                key={key}
+                className="flow-slide"
+                data-flow-slide
+                data-active={delta === 0 ? "true" : "false"}
+                data-distance={distance}
+              >
                 {showArt ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     className="cover"
                     src={art?.artworkUrl ?? ""}
                     alt=""
-                    width={320}
-                    height={320}
+                    width={240}
+                    height={240}
                     draggable={false}
                     decoding="async"
+                    loading={near ? "eager" : "lazy"}
+                    fetchPriority={priority && delta === 0 ? "high" : "auto"}
                     onError={() => onBroken(key)}
                   />
                 ) : (
@@ -161,16 +174,16 @@ export function CoverFlow({
         <button
           type="button"
           className="flow-nav next"
-          aria-label="Next song"
-          disabled={index >= hits.length - 1}
-          onClick={() => move(index + 1)}
+          aria-label={`Next song in ${year}`}
+          disabled={safeIndex >= hits.length - 1}
+          onClick={() => move(safeIndex + 1)}
         >
           <span aria-hidden="true">›</span>
         </button>
       </div>
       <div className="flow-caption">
         <p className="flow-count">
-          {index + 1} of {hits.length}
+          {safeIndex + 1} of {hits.length}
         </p>
         <p className="flow-title">{current.title}</p>
         <p className="flow-artist">{current.artist}</p>

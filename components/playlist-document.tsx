@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
 import { AppleMusicBadge } from "@/components/apple-badge"
@@ -119,6 +119,7 @@ function YearBlock({
   catalog,
   brokenArt,
   songs,
+  flow,
   eager,
   onVisible,
   onSelect,
@@ -132,6 +133,7 @@ function YearBlock({
   catalog: Record<string, MatchedTrack | null>
   brokenArt: Record<string, true>
   songs: boolean
+  flow: boolean
   eager: boolean
   onVisible: (hits: ChartHit[]) => void
   onSelect: (key: string) => void
@@ -143,25 +145,39 @@ function YearBlock({
 }) {
   const ref = useRef<HTMLElement>(null)
   const hits = chapter.hits
+  const [shown, setShown] = useState(eager)
 
   useEffect(() => {
     const node = ref.current
     if (!node || hits.length === 0) return
-    if (typeof IntersectionObserver === "undefined") {
+    let active = true
+    let done = false
+    const finish = () => {
+      if (!active || done) return
+      done = true
       onVisible(hits)
-      return
+      setShown(true)
+      window.removeEventListener("scroll", consider)
+      window.removeEventListener("resize", consider)
     }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          onVisible(hits)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: "480px 0px" },
-    )
-    observer.observe(node)
-    return () => observer.disconnect()
+    const consider = () => {
+      if (!active || done) return
+      const rect = node.getBoundingClientRect()
+      // Anything already above the fold has been scrolled to, including rows a
+      // fast jump would skip past an IntersectionObserver root margin.
+      if (rect.top >= window.innerHeight + 800) return
+      finish()
+    }
+    consider()
+    if (!done) {
+      window.addEventListener("scroll", consider, { passive: true })
+      window.addEventListener("resize", consider)
+    }
+    return () => {
+      active = false
+      window.removeEventListener("scroll", consider)
+      window.removeEventListener("resize", consider)
+    }
   }, [hits, onVisible])
 
   return (
@@ -173,6 +189,21 @@ function YearBlock({
       </div>
       {chapter.story.editorial ? <p className="story">{chapter.story.editorial}</p> : null}
       <p className="story">{chapter.story.summary}</p>
+      {flow && shown && chapter.hits.length > 0 ? (
+        <CoverFlow
+          year={chapter.year}
+          hits={chapter.hits}
+          catalog={catalog}
+          brokenArt={brokenArt}
+          playingKey={playingKey}
+          onTogglePlay={onTogglePlay}
+          onBroken={onBroken}
+          onNeed={onVisible}
+          affiliateToken={affiliateToken}
+          placement={badgePlacement}
+          priority={eager}
+        />
+      ) : null}
       {songs && chapter.hits.length > 0 ? (
         <ol className="tracks">
           {chapter.hits.map((hit) => {
@@ -251,7 +282,6 @@ export function PlaylistDocument({
   const [brokenArt, setBrokenArt] = useState<Record<string, true>>({})
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [browse, setBrowse] = useState<ResultsView>("flow")
-  const [flowIndex, setFlowIndex] = useState(0)
   const [canPlayFull, setCanPlayFull] = useState(false)
   const requested = useRef(new Set<string>())
   const generation = useRef(0)
@@ -269,9 +299,6 @@ export function PlaylistDocument({
   const [CollageView, setCollageView] = useState<typeof import("@/components/cover-collage").CoverCollage | null>(null)
   const previewAudio = useRef<HTMLAudioElement>(null)
   const collageLinkRef = useRef<HTMLButtonElement>(null)
-  const requestCovers = useCallback((rows: ChartHit[]) => {
-    void loadHits.current(rows)
-  }, [])
   const seenPlaylist = useRef(playlist)
   const titleTag = mode === "shared" ? "h1" : "h2"
   const Title = titleTag
@@ -294,7 +321,6 @@ export function PlaylistDocument({
     if (seenPlaylist.current !== playlist) {
       seenPlaylist.current = playlist
       setCollageOpen(false)
-      setFlowIndex(0)
     }
     previewAudio.current?.pause()
   }, [playlist])
@@ -581,7 +607,7 @@ export function PlaylistDocument({
   const eagerYears = new Set(
     playlist.years
       .filter((chapter) => chapter.hits.length > 0)
-      .slice(0, 3)
+      .slice(0, 1)
       .map((chapter) => chapter.year),
   )
 
@@ -780,15 +806,7 @@ export function PlaylistDocument({
 
       <nav aria-label="Years in this playlist" className="year-jump">
         {playlist.years.map((chapter) => (
-          <a
-            key={chapter.year}
-            href={browse === "list" ? `#year-${chapter.year}` : "#cover-flow"}
-            onClick={() => {
-              if (browse !== "flow") return
-              const next = playlist.hits.findIndex((hit) => hit.year === chapter.year)
-              if (next >= 0) setFlowIndex(next)
-            }}
-          >
+          <a key={chapter.year} href={`#year-${chapter.year}`}>
             {chapter.year}
           </a>
         ))}
@@ -808,21 +826,6 @@ export function PlaylistDocument({
       <audio ref={previewAudio} preload="none" onEnded={advancePreview} />
       <p className="courtesy">Preview provided courtesy of Apple.</p>
 
-      {browse === "flow" ? (
-        <CoverFlow
-          hits={playlist.hits}
-          index={Math.min(flowIndex, Math.max(playlist.hits.length - 1, 0))}
-          onIndex={setFlowIndex}
-          catalog={catalog}
-          brokenArt={brokenArt}
-          playingKey={playingKey}
-          onTogglePlay={playPreview}
-          onBroken={(key) => setBrokenArt((current) => ({ ...current, [key]: true }))}
-          onNeed={requestCovers}
-          affiliateToken={affiliateToken}
-          placement={badgePlacement}
-        />
-      ) : null}
       <div>
         {playlist.years.map((chapter) => (
           <YearBlock
@@ -831,6 +834,7 @@ export function PlaylistDocument({
             catalog={catalog}
             brokenArt={brokenArt}
             songs={browse === "list"}
+            flow={browse === "flow"}
             eager={eagerYears.has(chapter.year)}
             onVisible={onVisible.current}
             onSelect={setSelectedKey}
