@@ -144,7 +144,7 @@ describe("cover collage", () => {
     expect(
       collageDescription({
         headline,
-        count: 217,
+        count: 255,
         format: "wallpaper",
         layout: "mosaic",
         heroCount: 11,

@@ -20,7 +20,7 @@ pnpm build
 
 ## What you get
 
-Enter the year you graduated high school. The latest year is the current year, and it stays inside the years the chart library covers. A year with no No. 1s gets a short message. Class of 1984 covers 1979 through 1989: 217 No. 1s, starting with Le Freak, Too Much Heaven, and I Will Survive.
+Enter the year you graduated high school. The latest year is the current year, and it stays inside the years the chart library covers. A year with no No. 1s gets a short message. The song count on the page is the number of rows in that window. Class of 1984 covers 1979 through 1989 and, in the current library, is 255 songs, starting with Too Much Heaven, Da Ya Think I'm Sexy?, and I Will Survive.
 
 Each year has a short note built from the chart rows: how many songs reached No. 1, which songs are listed with the most weeks at No. 1, and which artists had the most No. 1s. `lib/playlist/editorial.ts` is where a later hand-written note can sit beside those facts.
 
@@ -33,6 +33,8 @@ Share creates a public page at `/p/[id]` with the same year notes and save butto
 ## Data
 
 Songs come from the `number_one_hits` view. See [docs/README.md](docs/README.md) for Apple Music and the database migration.
+
+Covers and previews are matched ahead of time. `pnpm catalog` reads the song library and writes `data/catalog-matches.json`, waiting out the public iTunes limit. The site reads that file, so a visitor does not send a search for every song.
 
 ## Database migration
 

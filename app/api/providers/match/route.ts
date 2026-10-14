@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
+import catalogFile from "@/data/catalog-matches.json"
+import { partitionStaticTracks, type StaticCatalogFile } from "@/lib/playlist/catalog-static"
 import { readAppleMusicCredentials, signAppleDeveloperToken } from "@/lib/providers/apple-token"
 import { createCatalogSearcher } from "@/lib/providers/catalog-search"
 import { matchHits } from "@/lib/providers/match-hits"
 import type { MatchTrack } from "@/lib/playlist/types"
 import { catalogCacheKey, readCatalogCache, writeCatalogCache } from "@/lib/server/catalog-cache"
+
+const staticSongs = (catalogFile as StaticCatalogFile).songs
 
 const APPLE_SONG_ID = /^[0-9]{2,18}$/
 
@@ -43,6 +47,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Those songs could not be checked." }, { status: 400 })
   }
 
+  const known = partitionStaticTracks(tracks, staticSongs)
+  if (known.unknown.length === 0) {
+    return NextResponse.json({
+      skipped: false,
+      source: "static",
+      matches: known.matches,
+      unmatched: known.unmatched,
+    })
+  }
+
   const credentials = readAppleMusicCredentials()
   let developerToken: string | null = null
   if (credentials) {
@@ -55,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const search = createCatalogSearcher(fetch, { developerToken })
-    const lookup = await matchHits(tracks, async (hit) => {
+    const lookup = await matchHits(known.unknown, async (hit) => {
       const key = catalogCacheKey(hit)
       const cached = readCatalogCache(key)
       if (cached && cached.length > 0) return cached
@@ -63,7 +77,12 @@ export async function POST(request: NextRequest) {
       if (found.length > 0) writeCatalogCache(key, found)
       return found
     })
-    return NextResponse.json({ skipped: false, ...lookup })
+    return NextResponse.json({
+      skipped: false,
+      source: "search",
+      matches: [...known.matches, ...lookup.matches],
+      unmatched: [...known.unmatched, ...lookup.unmatched],
+    })
   } catch (error) {
     console.error("Apple catalog lookup failed", error instanceof Error ? error.message : "unknown")
     return NextResponse.json({ error: "Apple Music could not be searched." }, { status: 502 })

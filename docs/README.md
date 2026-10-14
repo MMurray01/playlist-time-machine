@@ -40,13 +40,9 @@ Search uses the developer token only. The listener’s Music User Token is sent 
 
 `number_one_hits` is the only song source. The window is the `year` column, ordered by `chart_date`, then `week_number`, then `song_id`. A repeated `song_id` keeps its earliest chart date.
 
-Class of 1984 (`year` 1979 through 1989) is 217 songs and starts:
+The page, the year headers, and the text and CSV downloads count those rows. Nothing on the page hardcodes the length of a class. Class of 1984 (`year` 1979 through 1989) is 255 songs in the current library and starts with Too Much Heaven, Da Ya Think I'm Sexy?, and I Will Survive.
 
-1. Le Freak, Chic
-2. Too Much Heaven, Bee Gees
-3. I Will Survive, Gloria Gaynor
-
-Le Freak’s chart date is 1978-12-09 and its chart year is 1979. Counting rows by the calendar year of `chart_date` drops that song and leaves 216. The page, the year headers, and the text and CSV downloads all use the chart `year`, so each of those counts is 217.
+`data/catalog-matches.json` holds an Apple Music id, artwork URL, and preview URL for each song. `pnpm catalog` rebuilds it from the library. Opening a playlist reads that file instead of searching Apple for every song.
 
 Year notes are computed from those rows (count of No. 1s, longest `weeks_at_position`, artists with the most No. 1s). They do not add outside history. Richer copy can be added later in `lib/playlist/editorial.ts`.
 

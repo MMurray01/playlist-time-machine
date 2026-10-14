@@ -31,7 +31,7 @@ describe("provider batches", () => {
 
   it("puts the first Apple Music batch on the create call and the rest on batch adds", async () => {
     const calls: { url: string; count: number }[] = []
-    const ids = Array.from({ length: 217 }, (_, index) => String(1000 + index))
+    const ids = Array.from({ length: 255 }, (_, index) => String(1000 + index))
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input)
       const body = JSON.parse(String(init?.body)) as { data?: { id: string }[]; relationships?: { tracks: { data: { id: string }[] } } }
@@ -51,12 +51,12 @@ describe("provider batches", () => {
       songIds: ids,
     })
 
-    expect(calls.map((call) => call.count)).toEqual([100, 100, 17])
+    expect(calls.map((call) => call.count)).toEqual([100, 100, 55])
     expect(calls[0]?.url).toBe("https://api.music.apple.com/v1/me/library/playlists")
     expect(calls[1]?.url).toContain("/playlists/p.1/tracks")
     expect(result).toMatchObject({
       ok: true,
-      addedCount: 217,
+      addedCount: 255,
       playlistUrl: "https://music.apple.com/playlist/p.1",
     })
   })

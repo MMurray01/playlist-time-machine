@@ -1,37 +1,20 @@
 import { ImageResponse } from "next/og"
-import { chooseCatalogMatch } from "@/lib/playlist/match"
+import catalogFile from "@/data/catalog-matches.json"
+import { partitionStaticTracks, type StaticCatalogFile } from "@/lib/playlist/catalog-static"
 import { tokens } from "@/lib/playlist/tokens"
 import type { ChartHit } from "@/lib/playlist/types"
-import { createCatalogSearcher } from "@/lib/providers/catalog-search"
-import { readAppleMusicCredentials, signAppleDeveloperToken } from "@/lib/providers/apple-token"
 import { getSharedPlaylistPage } from "@/lib/server/share"
 
 export const alt = "Playlist Time Machine"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
-async function topCovers(hits: ChartHit[]): Promise<string[]> {
-  const credentials = readAppleMusicCredentials()
-  let developerToken: string | null = null
-  if (credentials) {
-    try {
-      developerToken = await signAppleDeveloperToken(credentials)
-    } catch {
-      developerToken = null
-    }
-  }
-  const search = createCatalogSearcher(fetch, { developerToken })
-  const found = await Promise.all(
-    hits.slice(0, 3).map(async (hit) => {
-      try {
-        const rows = await search({ title: hit.title, artist: hit.artist })
-        return chooseCatalogMatch({ title: hit.title, artist: hit.artist }, rows)?.artworkUrl ?? null
-      } catch {
-        return null
-      }
-    }),
+function topCovers(hits: ChartHit[]): string[] {
+  const tracks = hits.slice(0, 3).flatMap((hit) =>
+    hit.songId == null ? [] : [{ key: `song:${hit.songId}`, title: hit.title, artist: hit.artist }],
   )
-  return found.filter((url): url is string => Boolean(url))
+  const found = partitionStaticTracks(tracks, (catalogFile as StaticCatalogFile).songs)
+  return found.matches.flatMap((match) => (match.artworkUrl ? [match.artworkUrl] : []))
 }
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {

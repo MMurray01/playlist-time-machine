@@ -55,5 +55,5 @@ People who already use another service can read `/from-spotify`. That page links
 
 1. Import the GitHub repo. Framework preset: Next.js. Package manager: pnpm. Build command: `pnpm build` or `next build`.
 2. Add the Supabase and Apple Music variables above.
-3. Open `/`, enter `1984`, and choose **Build my playlist**. Class of 1984 is 217 songs, starting with Le Freak, Too Much Heaven, and I Will Survive.
+3. Open `/`, enter `1984`, and choose **Build my playlist**. The hit count is the library’s row count. Class of 1984 is 255 songs, starting with Too Much Heaven, Da Ya Think I'm Sexy?, and I Will Survive.
 4. **Save to Apple Music** is the save button. Share is next to it.

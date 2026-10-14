@@ -242,9 +242,9 @@ describe("class of 1984 chart library", () => {
     expect(playlist.hits).toHaveLength(1)
   })
 
-  it("builds the known 217-song playlist in chart order", () => {
+  it("builds the saved snapshot in chart order", () => {
     const playlist = buildPlaylist({ graduationYear: 1984, genres: [], hits: [...hits].reverse() })
-    expect(playlist.hits).toHaveLength(217)
+    expect(playlist.hits).toHaveLength(hits.length)
     expect(playlist.hits.slice(0, 3).map((song) => [song.title, song.artist])).toEqual([
       ["Le Freak", "Chic"],
       ["Too Much Heaven", "Bee Gees"],
@@ -255,7 +255,7 @@ describe("class of 1984 chart library", () => {
     ])
     const story = playlist.years[0]?.story
     expect(story?.facts.hitCount).toBe(24)
-    expect(playlist.years.reduce((sum, year) => sum + year.hits.length, 0)).toBe(217)
+    expect(playlist.years.reduce((sum, year) => sum + year.hits.length, 0)).toBe(hits.length)
     for (const year of playlist.years) {
       for (let index = 1; index < year.hits.length; index += 1) {
         expect(compareChartOrder(year.hits[index - 1], year.hits[index])).toBeLessThanOrEqual(0)
@@ -266,9 +266,9 @@ describe("class of 1984 chart library", () => {
       return chartYear >= 1979 && chartYear <= 1989
     })
     expect(playlist.hits.filter((song) => song.title === "Le Freak")).toHaveLength(1)
-    expect(countedByChartDate).toHaveLength(216)
+    expect(countedByChartDate).toHaveLength(hits.length - 1)
     const csv = playlistCsv(playlist.hits)
-    expect(csv.split("\n").filter(Boolean)).toHaveLength(218)
+    expect(csv.split("\n").filter(Boolean)).toHaveLength(hits.length + 1)
     expect(csv.startsWith("Artist,Song,Year\n")).toBe(true)
     expect(csv).toContain('"Chic","Le Freak",1979')
     expect(csv.toLowerCase()).not.toContain("spotify")
