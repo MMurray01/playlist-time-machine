@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAppleMusicPlaylist } from "@/lib/providers/apple"
 import { readAppleMusicCredentials, signAppleDeveloperToken } from "@/lib/providers/apple-token"
+import { APPLE_LIBRARY_DESCRIPTION_MAX } from "@/lib/playlist/apple-library"
 import { clipTitle } from "@/lib/playlist/window"
 
 const APPLE_ID = /^[A-Za-z0-9.]{2,40}$/
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
   const record = body as Record<string, unknown>
   const userToken = typeof record.userToken === "string" ? record.userToken : ""
   const name = clipTitle(typeof record.name === "string" ? record.name : "")
-  const description = typeof record.description === "string" ? record.description.slice(0, 300) : ""
+  const description =
+    typeof record.description === "string" ? record.description.slice(0, APPLE_LIBRARY_DESCRIPTION_MAX) : ""
   const trackIds = Array.isArray(record.trackIds) ? record.trackIds : []
 
   if (!userToken || userToken.length > 4000) {

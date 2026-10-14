@@ -639,6 +639,50 @@ body {
   line-height: 1.4;
 }
 
+.save-cover {
+  margin-top: 1rem;
+  padding: 0.95rem;
+  border: 1px solid var(--ptm-line);
+  border-radius: 16px;
+  background: var(--ptm-surface);
+}
+
+.save-cover-stage {
+  width: min(100%, 16rem);
+}
+
+.save-cover-stage canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  background: var(--ptm-cover);
+}
+
+.save-cover-name {
+  margin: 0.85rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.save-cover-description {
+  margin-top: 0.35rem;
+}
+
+.save-cover .btn {
+  width: 100%;
+  margin-top: 0.85rem;
+}
+
+.save-cover-tip {
+  margin: 0.75rem 0 0;
+  color: var(--ptm-ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
 .flow {
   margin-top: 1rem;
 }

@@ -30,13 +30,17 @@ describe("provider batches", () => {
   })
 
   it("puts the first Apple Music batch on the create call and the rest on batch adds", async () => {
-    const calls: { url: string; count: number }[] = []
+    const calls: { url: string; count: number; attributes?: Record<string, unknown> }[] = []
     const ids = Array.from({ length: 255 }, (_, index) => String(1000 + index))
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input)
-      const body = JSON.parse(String(init?.body)) as { data?: { id: string }[]; relationships?: { tracks: { data: { id: string }[] } } }
+      const body = JSON.parse(String(init?.body)) as {
+        attributes?: Record<string, unknown>
+        data?: { id: string }[]
+        relationships?: { tracks: { data: { id: string }[] } }
+      }
       const count = body.data?.length ?? body.relationships?.tracks.data.length ?? 0
-      calls.push({ url, count })
+      calls.push({ url, count, attributes: body.attributes })
       if (url.endsWith("/me/library/playlists")) {
         return jsonResponse({ data: [{ id: "p.1", attributes: { url: "https://music.apple.com/playlist/p.1" } }] })
       }
@@ -53,6 +57,7 @@ describe("provider batches", () => {
 
     expect(calls.map((call) => call.count)).toEqual([100, 100, 55])
     expect(calls[0]?.url).toBe("https://api.music.apple.com/v1/me/library/playlists")
+    expect(Object.keys(calls[0]?.attributes ?? {}).sort()).toEqual(["description", "name"])
     expect(calls[1]?.url).toContain("/playlists/p.1/tracks")
     expect(result).toMatchObject({
       ok: true,
