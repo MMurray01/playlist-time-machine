@@ -163,6 +163,8 @@ export function CoverCollage({
 
   useEffect(() => {
     requestRef.current(hits)
+    const timer = window.setInterval(() => requestRef.current(hits), 5000)
+    return () => window.clearInterval(timer)
   }, [hits])
 
   useEffect(() => {

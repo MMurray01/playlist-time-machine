@@ -25,7 +25,10 @@ type LookupResult = {
   needsAuth?: boolean
 }
 
-async function lookupHits(hits: ChartHit[]): Promise<LookupResult> {
+async function lookupHits(
+  hits: ChartHit[],
+  onBatch?: (result: LookupResult) => void,
+): Promise<LookupResult> {
   const matches: MatchedTrack[] = []
   const unmatched: UnmatchedTrack[] = []
   for (let index = 0; index < hits.length; index += 20) {
@@ -49,6 +52,7 @@ async function lookupHits(hits: ChartHit[]): Promise<LookupResult> {
     if (body.skipped) return { matches, unmatched, skipped: true }
     matches.push(...(body.matches ?? []))
     unmatched.push(...(body.unmatched ?? []))
+    if (body.matches && body.matches.length > 0) onBatch?.({ matches: body.matches, unmatched: [] })
   }
   return { matches, unmatched }
 }
@@ -356,7 +360,10 @@ export function PlaylistDocument({
     })
     if (pending.length === 0) return
     try {
-      let result = await lookupHits(pending)
+      let result = await lookupHits(pending, (partial) => {
+        if (ticket !== generation.current) return
+        rememberLookup(partial)
+      })
       if (ticket !== generation.current) return
       if (result.skipped) {
         for (const hit of pending) requested.current.delete(hitKey(hit))
@@ -367,7 +374,10 @@ export function PlaylistDocument({
         await new Promise((resolve) => setTimeout(resolve, 700))
         if (ticket !== generation.current) return
         const retryHits = pending.filter((hit) => failed.some((row) => row.key === hitKey(hit)))
-        const second = await lookupHits(retryHits)
+        const second = await lookupHits(retryHits, (partial) => {
+          if (ticket !== generation.current) return
+          rememberLookup(partial)
+        })
         if (ticket !== generation.current) return
         result = {
           matches: [...result.matches, ...second.matches],
