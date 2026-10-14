@@ -477,7 +477,6 @@ export function PlaylistDocument({
 
   const notFoundLabel = unmatched.filter((song) => song.reason === "not_in_catalog")
   const failedLabel = unmatched.filter((song) => song.reason === "search_failed")
-  const opening = playlist.hits.slice(0, 3)
   const selected = selectedKey ? (playlist.hits.find((hit) => hitKey(hit) === selectedKey) ?? null) : null
   const eagerYears = new Set(
     playlist.years
@@ -586,29 +585,6 @@ export function PlaylistDocument({
           Covers
         </button>
       </div>
-
-      {opening.length > 0 && browse === "list" ? (
-        <div className="lead-art">
-          {opening.map((hit) => {
-            const key = hitKey(hit)
-            const entry = catalog[key]
-            return (
-              <button key={key} type="button" className="lead-card" onClick={() => setSelectedKey(key)}>
-                <Cover
-                  hit={hit}
-                  art={entry?.artworkUrl ?? undefined}
-                  pending={providers.apple && entry === undefined}
-                  broken={Boolean(brokenArt[key])}
-                  eager
-                  onError={() => setBrokenArt((current) => ({ ...current, [key]: true }))}
-                />
-                <span className="lead-title">{hit.title}</span>
-                <span className="lead-artist">{hit.artist}</span>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
 
       <div>
         {playlist.years.map((chapter) => (
