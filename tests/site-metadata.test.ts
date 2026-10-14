@@ -1,17 +1,17 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
-import { SITE_URL, pageUrl, siteMetadata } from "@/lib/site/metadata"
+import { HOME_DESCRIPTION, SITE_URL, pageUrl, siteMetadata } from "@/lib/site/metadata"
 
 describe("site share metadata", () => {
   it("points the homepage card at the production origin", () => {
     const meta = siteMetadata({
       title: "Playlist Time Machine",
-      description: "The gift of music rediscovery",
+      description: HOME_DESCRIPTION,
       path: "/",
     })
     expect(meta.openGraph).toMatchObject({
       title: "Playlist Time Machine",
-      description: "The gift of music rediscovery",
+      description: HOME_DESCRIPTION,
       url: "https://www.playlisttimemachine.com",
       siteName: "Playlist Time Machine",
       type: "website",
@@ -21,7 +21,7 @@ describe("site share metadata", () => {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Playlist Time Machine. The gift of music rediscovery",
+        alt: "Playlist Time Machine. Your graduation year, in number one hits.",
       },
     ])
     expect(meta.twitter).toMatchObject({
@@ -38,6 +38,13 @@ describe("site share metadata", () => {
     expect(pageUrl("/terms")).toBe(`${SITE_URL}/terms`)
     expect(pageUrl("/from-spotify")).toBe(`${SITE_URL}/from-spotify`)
   })
+
+  it("describes the homepage without a chart brand or a dash", () => {
+    expect(HOME_DESCRIPTION).toContain("Your graduation year, in number one hits.")
+    expect(HOME_DESCRIPTION.toLowerCase()).not.toContain("billboard")
+    expect(HOME_DESCRIPTION).not.toContain("\u2014")
+    expect(HOME_DESCRIPTION).not.toContain("\u2013")
+  })
 })
 
 describe("launch icons", () => {
@@ -50,5 +57,6 @@ describe("launch icons", () => {
     const og = readFileSync("public/og.png")
     expect(og.readUInt32BE(16)).toBe(1200)
     expect(og.readUInt32BE(20)).toBe(630)
+    expect(og.length).toBeLessThan(1_000_000)
   })
 })
