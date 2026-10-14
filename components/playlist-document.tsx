@@ -167,9 +167,7 @@ function YearBlock({
           {chapter.hits.length} {chapter.hits.length === 1 ? "song" : "songs"}
         </p>
       </div>
-      {chapter.story.editorial ? <p className="story">{chapter.story.editorial}</p> : null}
-      <p className="story">{chapter.story.summary}</p>
-      {chapter.hits.length === 0 ? null : browse === "covers" ? (
+      {browse === "covers" && chapter.hits.length > 0 ? (
         <div className="cover-row" role="list" aria-label={`${chapter.year} albums`}>
           {chapter.hits.map((hit) => {
             const key = hitKey(hit)
@@ -197,7 +195,10 @@ function YearBlock({
             )
           })}
         </div>
-      ) : (
+      ) : null}
+      {chapter.story.editorial ? <p className="story">{chapter.story.editorial}</p> : null}
+      <p className="story">{chapter.story.summary}</p>
+      {chapter.hits.length === 0 || browse === "covers" ? null : (
         <ol className="tracks">
           {chapter.hits.map((hit) => {
             const key = hitKey(hit)
@@ -586,7 +587,7 @@ export function PlaylistDocument({
         </button>
       </div>
 
-      {opening.length > 0 ? (
+      {opening.length > 0 && browse === "list" ? (
         <div className="lead-art">
           {opening.map((hit) => {
             const key = hitKey(hit)
