@@ -28,7 +28,7 @@ The song list appears immediately, grouped by year. Covers for the first three y
 
 Save the playlist to Apple Music in one tap. Songs are added in batches of 100. The page reports how many songs matched and lists the ones Apple Music did not have. People coming from another service can open `/from-spotify`.
 
-Share creates a public page at `/p/[id]` with the same year notes and save buttons.
+Share creates a public page at `/p/[id]` with the same year notes and save buttons. A text or CSV download lists the artist, song, and year for someone without Apple Music. How it works, privacy, and terms are in the footer.
 
 ## Data
 

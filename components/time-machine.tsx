@@ -108,10 +108,10 @@ export function TimeMachine({
       <main className="sheet px-1 py-16 sm:py-24">
         <header className="mast">
           <p className="wordmark">Playlist Time Machine</p>
-          <h1>The No. 1s from your class.</h1>
+          <h1>Rediscover the soundtrack of your life</h1>
           <p className="lede">
-            What year did you graduate high school? You get every Hot 100 No. 1 from five years before that year
-            through five years after, in the order they reached No. 1.
+            Your first dance, graduation, those long summer nights. Enter your high school graduation year and get
+            every Billboard #1 from the decade that shaped you.
           </p>
         </header>
 

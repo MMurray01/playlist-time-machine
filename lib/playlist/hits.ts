@@ -115,7 +115,7 @@ export function buildPlaylist(input: {
   const years = []
 
   for (let year = window.startYear; year <= window.endYear; year += 1) {
-    const yearHits = hits.filter((hit) => hit.year === year)
+    const yearHits = orderHits(hits.filter((hit) => hit.year === year))
     years.push({
       year,
       hits: yearHits,

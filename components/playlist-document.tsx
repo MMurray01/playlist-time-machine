@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
 import { loadMusicKit } from "@/components/musickit"
 import { SongDetail } from "@/components/song-detail"
+import { downloadFilename, playlistCsv, playlistText } from "@/lib/playlist/export"
 import { hitKey } from "@/lib/playlist/hits"
 import type {
   BuiltPlaylist,
@@ -162,10 +163,9 @@ function YearBlock({
   return (
     <article ref={ref} id={`year-${chapter.year}`} className="year-block">
       <div className="year-heading">
-        <h3>{chapter.year}</h3>
-        <p className="quiet">
-          {chapter.hits.length} {chapter.hits.length === 1 ? "song" : "songs"}
-        </p>
+        <h3>
+          {chapter.year} · {chapter.hits.length} {chapter.hits.length === 1 ? "hit" : "hits"}
+        </h3>
       </div>
       {browse === "covers" && chapter.hits.length > 0 ? (
         <div className="cover-row" role="list" aria-label={`${chapter.year} albums`}>
@@ -434,6 +434,17 @@ export function PlaylistDocument({
     }
   }
 
+  function downloadList(extension: "csv" | "txt") {
+    const contents = extension === "csv" ? playlistCsv(playlist.hits) : playlistText(playlist)
+    const blob = new Blob([contents], { type: extension === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = downloadFilename(name || playlist.title, extension)
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function share() {
     setError("")
     if (mode === "shared") {
@@ -493,11 +504,17 @@ export function PlaylistDocument({
   return (
     <section id="playlist" aria-labelledby="playlist-title" className="results">
       <div className="playlist-head">
-        <p className="kicker">{playlist.hits.length === 1 ? "1 song" : `${playlist.hits.length} songs`}</p>
         <Title id="playlist-title">{mode === "shared" ? playlist.title : name || playlist.title}</Title>
-        <p className="summary">
-          Every Hot 100 No. 1 from {playlist.startYear} through {playlist.endYear}, in chart order.
-        </p>
+        <div className="stat-row" aria-label="Playlist totals">
+          <span className="stat-chip">Class of {playlist.graduationYear}</span>
+          <span className="stat-chip">
+            {playlist.startYear}–{playlist.endYear}
+          </span>
+          <span className="stat-chip">
+            {playlist.hits.length} #1 {playlist.hits.length === 1 ? "hit" : "hits"}
+          </span>
+        </div>
+        <p className="summary">Every Hot 100 No. 1, in chart order.</p>
       </div>
 
       {mode === "builder" ? (
@@ -526,6 +543,25 @@ export function PlaylistDocument({
         </button>
         <button type="button" onClick={() => void share()} disabled={busy || playlist.hits.length === 0} className="btn btn-ghost">
           Share
+        </button>
+      </div>
+      <div className="download">
+        <span id="download-label">Download list</span>
+        <button
+          type="button"
+          aria-describedby="download-label"
+          disabled={playlist.hits.length === 0}
+          onClick={() => downloadList("txt")}
+        >
+          TXT
+        </button>
+        <button
+          type="button"
+          aria-describedby="download-label"
+          disabled={playlist.hits.length === 0}
+          onClick={() => downloadList("csv")}
+        >
+          CSV
         </button>
       </div>
 

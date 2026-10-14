@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest"
 import { contrastRatio } from "@/lib/playlist/contrast"
 import { decadeOf } from "@/lib/playlist/decade"
 import { isMissingColumnError } from "@/lib/playlist/errors"
-import { buildPlaylist, dedupeHits, filterByGenres, mapHitRow, orderHits } from "@/lib/playlist/hits"
+import { playlistCsv, playlistText } from "@/lib/playlist/export"
+import { buildPlaylist, compareChartOrder, dedupeHits, filterByGenres, mapHitRow, orderHits } from "@/lib/playlist/hits"
 import { createShareId, isShareId } from "@/lib/playlist/ids"
 import { artistMatches, chooseCatalogMatch } from "@/lib/playlist/match"
 import { deriveYearStory } from "@/lib/playlist/stories"
@@ -215,6 +216,25 @@ describe("class of 1984 chart library", () => {
     ])
     const story = playlist.years[0]?.story
     expect(story?.facts.hitCount).toBe(24)
+    expect(playlist.years.reduce((sum, year) => sum + year.hits.length, 0)).toBe(217)
+    for (const year of playlist.years) {
+      for (let index = 1; index < year.hits.length; index += 1) {
+        expect(compareChartOrder(year.hits[index - 1], year.hits[index])).toBeLessThanOrEqual(0)
+      }
+    }
+    const countedByChartDate = playlist.hits.filter((song) => {
+      const chartYear = Number(song.chartDate?.slice(0, 4))
+      return chartYear >= 1979 && chartYear <= 1989
+    })
+    expect(playlist.hits.filter((song) => song.title === "Le Freak")).toHaveLength(1)
+    expect(countedByChartDate).toHaveLength(216)
+    const csv = playlistCsv(playlist.hits)
+    expect(csv.split("\n").filter(Boolean)).toHaveLength(218)
+    expect(csv.startsWith("Artist,Song,Year\n")).toBe(true)
+    expect(csv).toContain('"Chic","Le Freak",1979')
+    expect(csv.toLowerCase()).not.toContain("spotify")
+    expect(playlistText(playlist).match(/Le Freak/g)).toHaveLength(1)
+    expect((playlistText(playlist).match(/^\S.*\(\d{4}\)$/gm) ?? []).length).toBe(0)
     expect(story?.facts.longestRuns[0]).toEqual({ title: "Rise", artist: "Herb Alpert", weeks: 7 })
     expect(story?.summary).toContain("Rise by Herb Alpert")
     expect(story?.summary).toContain("7 weeks at No. 1")

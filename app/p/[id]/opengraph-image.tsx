@@ -14,7 +14,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     ? `${page.playlist.hits.length} No. 1 hits · ${page.playlist.startYear}–${page.playlist.endYear}`
     : "Billboard Hot 100 No. 1s"
   const opening = page.ok
-    ? page.playlist.hits.slice(0, 3).map((hit) => `${hit.title} — ${hit.artist}`)
+    ? page.playlist.hits.slice(0, 3).map((hit) => `${hit.title}, ${hit.artist}`)
     : []
 
   return new ImageResponse(

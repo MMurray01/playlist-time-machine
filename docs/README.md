@@ -42,9 +42,11 @@ Search uses the developer token only. The listener’s Music User Token is sent 
 
 Class of 1984 (`year` 1979 through 1989) is 217 songs and starts:
 
-1. Le Freak — Chic
-2. Too Much Heaven — Bee Gees
-3. I Will Survive — Gloria Gaynor
+1. Le Freak, Chic
+2. Too Much Heaven, Bee Gees
+3. I Will Survive, Gloria Gaynor
+
+Le Freak’s chart date is 1978-12-09 and its chart year is 1979. Counting rows by the calendar year of `chart_date` drops that song and leaves 216. The page, the year headers, and the text and CSV downloads all use the chart `year`, so each of those counts is 217.
 
 Year notes are computed from those rows (count of No. 1s, longest `weeks_at_position`, artists with the most No. 1s). They do not add outside history. Richer copy can be added later in `lib/playlist/editorial.ts`.
 

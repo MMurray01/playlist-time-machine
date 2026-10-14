@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import type { CSSProperties } from "react"
 import { Inter } from "next/font/google"
+import { SiteFooter } from "@/components/site-footer"
 import { tokens } from "@/lib/playlist/tokens"
 import "./globals.css"
 
@@ -27,7 +28,7 @@ const theme = {
 
 export const metadata: Metadata = {
   title: "Playlist Time Machine",
-  description: "Every Billboard Hot 100 No. 1 from the years around your high school graduation.",
+  description: "Enter your high school graduation year and get every Billboard No. 1 from the decade that shaped you.",
 }
 
 export default function RootLayout({
@@ -37,7 +38,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={sans.variable} style={theme}>
-      <body className={sans.className}>{children}</body>
+      <body className={sans.className}>
+        {children}
+        <SiteFooter />
+      </body>
     </html>
   )
 }
