@@ -17,6 +17,8 @@ export function SongDetail({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
   const [playing, setPlaying] = useState(false)
   const [fullStatus, setFullStatus] = useState("")
   const art = match?.artworkLargeUrl || match?.artworkUrl
@@ -26,10 +28,24 @@ export function SongDetail({
     const dialog = dialogRef.current
     const audio = audioRef.current
     if (!dialog) return
+    const onNativeClose = () => {
+      const pending = Number(dialog.dataset.suppressClose || 0)
+      if (pending > 0) {
+        if (pending === 1) delete dialog.dataset.suppressClose
+        else dialog.dataset.suppressClose = String(pending - 1)
+        return
+      }
+      onCloseRef.current()
+    }
+    dialog.addEventListener("close", onNativeClose)
     if (!dialog.open) dialog.showModal()
     return () => {
+      dialog.removeEventListener("close", onNativeClose)
       audio?.pause()
-      if (dialog.open) dialog.close()
+      if (dialog.open) {
+        dialog.dataset.suppressClose = String(Number(dialog.dataset.suppressClose || 0) + 1)
+        dialog.close()
+      }
     }
   }, [])
 
@@ -88,7 +104,6 @@ export function SongDetail({
       ref={dialogRef}
       className="song-dialog"
       aria-labelledby="song-detail-title"
-      onClose={onClose}
       onClick={(event) => {
         if (event.target === dialogRef.current) onClose()
       }}
