@@ -142,9 +142,113 @@
   }
 }
 
-/* High DPI displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  .shadow-xl {
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+.display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 20;
+  background: #1c1714;
+  color: #fffdf8;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.sheet {
+  width: min(40rem, calc(100% - 1.5rem));
+  margin-inline: auto;
+}
+
+.year-input {
+  width: 100%;
+  border: 0;
+  border-bottom: 2px solid #1c1714;
+  background: transparent;
+  text-align: center;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(4.25rem, 18vw, 7.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: #1c1714;
+  padding: 0;
+}
+
+.year-input:focus {
+  outline: none;
+  border-bottom-color: #6e1e34;
+}
+
+.year-input:focus-visible {
+  outline: 3px solid #1c1714;
+  outline-offset: 6px;
+}
+
+.year-input::placeholder {
+  color: #3f3832;
+  opacity: 1;
+}
+
+.cover {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.7rem;
+  object-fit: cover;
+  flex: none;
+}
+
+.year-jump {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.year-jump a {
+  flex: none;
+  min-height: 2.75rem;
+  min-width: 3.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #e3d7c6;
+  background: #fffdf8;
+  color: #1c1714;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 3px solid #1c1714;
+  outline-offset: 3px;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--font-sans), "Avenir Next", "Segoe UI", sans-serif;
+  background-color: #f3eee4;
+  background-image:
+    radial-gradient(1100px 480px at 50% -8%, rgba(110, 30, 52, 0.16), transparent 58%),
+    radial-gradient(700px 360px at 100% 0%, rgba(15, 118, 110, 0.08), transparent 50%);
+  color: #1c1714;
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
