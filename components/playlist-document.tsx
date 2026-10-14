@@ -3,13 +3,16 @@
 import dynamic from "next/dynamic"
 import { useEffect, useRef, useState } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
+import { ShareLaunch } from "@/components/share-sheet"
 import { loadMusicKit } from "@/components/musickit"
 import { AppleMusicBadge } from "@/components/apple-badge"
 import { CoverFlow } from "@/components/cover-flow"
 import { SongDetail } from "@/components/song-detail"
 import { readResultsView, writeResultsView, type ResultsView } from "@/lib/playlist/browse"
 import { downloadFilename, playlistCsv, playlistText } from "@/lib/playlist/export"
+import { collageArtworkUrl } from "@/lib/playlist/collage"
 import { hitKey } from "@/lib/playlist/hits"
+import { pickStoryHits } from "@/lib/share/story"
 import type {
   BuiltPlaylist,
   ChartHit,
@@ -565,47 +568,6 @@ export function PlaylistDocument({
     URL.revokeObjectURL(url)
   }
 
-  async function share() {
-    setError("")
-    if (mode === "shared") {
-      const url = window.location.href
-      setShareUrl(url)
-      try {
-        await navigator.clipboard.writeText(url)
-        setStatus("Link copied.")
-      } catch {
-        setStatus("Copy this link to share the playlist.")
-      }
-      return
-    }
-
-    setBusy(true)
-    setStatus("Creating a share link.")
-    try {
-      const result = await sharePlaylistAction({
-        graduationYear: playlist.graduationYear,
-        title: name,
-      })
-      if (!result.ok) {
-        setError(result.error)
-        setStatus("")
-      } else {
-        setShareUrl(result.url)
-        try {
-          await navigator.clipboard.writeText(result.url)
-          setStatus("Link copied.")
-        } catch {
-          setStatus("Copy this link to share the playlist.")
-        }
-      }
-    } catch {
-      setError("The share link could not be saved. Try again.")
-      setStatus("")
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function ensureSharePage(): Promise<string | null> {
     if (mode === "shared") {
       const url = new URL(window.location.href)
@@ -625,6 +587,33 @@ export function PlaylistDocument({
     } catch {
       return null
     }
+  }
+
+  async function prepareStoryImage(): Promise<Blob | null> {
+    const picks = pickStoryHits(playlist.hits, (hit) => hit.year)
+    const known = { ...catalogRef.current }
+    const missing = picks.filter((hit) => !(hitKey(hit) in known))
+    if (missing.length > 0) {
+      const result = await lookupHits(missing)
+      if (!result.skipped) {
+        for (const match of result.matches) known[match.key] = match
+        for (const miss of result.unmatched) known[miss.key] = null
+        rememberLookup({ matches: result.matches, unmatched: result.unmatched })
+      }
+    }
+    const { renderStoryPng } = await import("@/components/story-canvas")
+    return renderStoryPng({
+      title: `Class of ${playlist.graduationYear}`,
+      tagline: "The number one hits from the years that shaped me.",
+      mark: "playlisttimemachine.com",
+      tiles: picks.map((hit) => {
+        const match = known[hitKey(hit)]
+        return {
+          title: hit.title,
+          artworkUrl: collageArtworkUrl(match?.artworkLargeUrl || match?.artworkUrl || null, 360),
+        }
+      }),
+    })
   }
 
   const notFoundLabel = unmatched.filter((song) => song.reason === "not_in_catalog")
@@ -762,9 +751,14 @@ export function PlaylistDocument({
         >
           Save to Apple Music
         </button>
-        <button type="button" onClick={() => void share()} disabled={busy || playlist.hits.length === 0} className="btn btn-ghost">
-          Share
-        </button>
+        <ShareLaunch
+          target="playlist"
+          year={playlist.graduationYear}
+          className="btn btn-ink"
+          resolveUrl={ensureSharePage}
+          prepareImage={prepareStoryImage}
+          disabled={playlist.hits.length === 0}
+        />
       </div>
       <div className="download">
         <span id="download-label">Download list</span>

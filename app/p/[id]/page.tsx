@@ -35,8 +35,10 @@ export async function generateMetadata({
     ? `Make a cover collage · ${page.playlist.title}`
     : `${page.playlist.title} · Playlist Time Machine`
   const description = collage
-    ? `A free collage of album covers from ${page.playlist.title}, ${page.playlist.startYear}–${page.playlist.endYear}. Make your own with Playlist Time Machine.`
+    ? `A free collage of album covers from ${page.playlist.title}, ${page.playlist.startYear} through ${page.playlist.endYear}. Make your own with Playlist Time Machine.`
     : `Number one hits from ${page.playlist.startYear} through ${page.playlist.endYear}, the popular songs of the time. ${page.playlist.hits.length} songs, in the order they reached the top.`
+  const imageUrl = origin ? `${origin}/p/${id}/opengraph-image` : `/p/${id}/opengraph-image`
+  const imageAlt = `${page.playlist.title}. Number one hits from ${page.playlist.startYear} through ${page.playlist.endYear}.`
   return {
     title,
     description,
@@ -46,12 +48,13 @@ export async function generateMetadata({
       description,
       type: "website",
       url: collage ? invite : canonical,
-      images: [origin ? `${origin}/p/${id}/opengraph-image` : `/p/${id}/opengraph-image`],
+      images: [{ url: imageUrl, width: 1200, height: 630, alt: imageAlt }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [imageUrl],
     },
   }
 }

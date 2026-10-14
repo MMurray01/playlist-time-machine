@@ -83,6 +83,23 @@ body {
   margin-bottom: 3.5rem;
 }
 
+.mast-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.share-launch {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.actions .share-launch {
+  display: block;
+}
+
 .wordmark {
   font-size: 0.875rem;
   font-weight: 550;
@@ -1216,6 +1233,169 @@ body {
 
 .site-footer a:hover {
   color: var(--ptm-ink);
+}
+
+.site-footer .share-launch {
+  display: inline-flex;
+  align-items: center;
+}
+
+.footer-share {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.35rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.footer-share:hover:not(:disabled) {
+  color: var(--ptm-ink);
+}
+
+.share-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(28rem, calc(100vw - 1.25rem));
+  max-height: calc(100dvh - 1rem);
+  height: fit-content;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  background: var(--ptm-surface);
+  color: var(--ptm-ink);
+  box-shadow: 0 24px 60px rgba(17, 17, 19, 0.18);
+}
+
+.share-dialog:not([open]) {
+  display: none;
+}
+
+.share-dialog::backdrop {
+  background: rgba(17, 17, 19, 0.42);
+}
+
+.share-dialog-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 1.15rem 1.15rem 0.4rem;
+}
+
+.share-dialog h2,
+.share-dialog h3,
+.share-dialog h4 {
+  margin: 0;
+}
+
+.share-dialog h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.share-lead {
+  margin-top: 0.45rem;
+  color: var(--ptm-ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.share-actions {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-actions a,
+.share-actions button,
+.share-channel-actions button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--ptm-line);
+  border-radius: 10px;
+  background: var(--ptm-surface);
+  color: var(--ptm-ink);
+  font-size: 0.95rem;
+  font-weight: 560;
+  text-align: left;
+  text-decoration: none;
+}
+
+.share-actions a:hover,
+.share-actions button:hover:not(:disabled),
+.share-channel-actions button:hover:not(:disabled) {
+  border-color: var(--ptm-ink);
+}
+
+.share-actions button:disabled,
+.share-channel-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.share-story {
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ptm-line);
+}
+
+.share-story h3,
+.share-channel h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.share-story-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 8rem;
+  margin-top: 0.75rem;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #100c16;
+  color: #f4f1ea;
+}
+
+.share-story-frame img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: 16rem;
+  object-fit: cover;
+  object-position: center;
+}
+
+.share-channel {
+  margin-top: 0.9rem;
+}
+
+.share-channel-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.share-dialog-actions {
+  flex: none;
+  padding: 0.85rem 1.15rem calc(0.95rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ptm-line);
+}
+
+.share-dialog-actions .btn {
+  width: 100%;
 }
 
 .legal h1 {
