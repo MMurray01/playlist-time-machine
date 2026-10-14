@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { FromSpotify } from "@/components/from-spotify"
+import { getAffiliateToken } from "@/lib/server/env"
 
 export const metadata: Metadata = {
   title: "Coming from Spotify? · Playlist Time Machine",
@@ -13,7 +14,7 @@ export default function FromSpotifyPage() {
       <p className="wordmark">
         <Link href="/">Playlist Time Machine</Link>
       </p>
-      <FromSpotify />
+      <FromSpotify affiliateToken={getAffiliateToken()} />
     </main>
   )
 }

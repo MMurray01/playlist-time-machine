@@ -1,6 +1,8 @@
 import Link from "next/link"
+import { getAffiliateToken } from "@/lib/server/env"
 
 export function SiteFooter() {
+  const affiliate = getAffiliateToken()
   return (
     <footer className="site-footer">
       <nav aria-label="About this site">
@@ -12,6 +14,15 @@ export function SiteFooter() {
         <span aria-hidden="true">·</span>
         <span>a product of abeba co</span>
       </nav>
+      {affiliate ? (
+        <p className="affiliate-disclosure">
+          Links to Apple Music on this site are affiliate links. Playlist Time Machine may earn a commission on
+          qualifying subscriptions and purchases.
+        </p>
+      ) : null}
+      <p className="attribution">
+        Apple and Apple Music are trademarks of Apple Inc., registered in the U.S. and other countries.
+      </p>
       <p className="attribution">
         Billboard and Billboard Hot 100 are trademarks of Billboard Media, LLC. The dates and weeks on this site are
         drawn from public lists of Hot 100 number ones. Playlist Time Machine is not affiliated with, endorsed by, or

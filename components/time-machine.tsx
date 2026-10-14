@@ -18,11 +18,13 @@ export function TimeMachine({
   libraryError,
   chartMinYear,
   chartMaxYear,
+  affiliateToken = null,
 }: {
   providers: ProviderAvailability
   libraryError: string | null
   chartMinYear: number | null
   chartMaxYear: number | null
+  affiliateToken?: string | null
 }) {
   const limits = useMemo(
     () => graduationYearLimits({ chartMinYear, chartMaxYear }),
@@ -105,7 +107,7 @@ export function TimeMachine({
       <a className="skip-link" href="#graduation-year">
         Skip to graduation year
       </a>
-      <main className="sheet px-1 py-16 sm:py-24">
+      <main className="sheet sheet-screen px-1 py-16 sm:py-24">
         <header className="mast">
           <p className="wordmark">Playlist Time Machine</p>
           <h1>Rediscover the soundtrack of your life</h1>
@@ -186,9 +188,16 @@ export function TimeMachine({
           ) : null}
         </form>
 
-        <FromSpotify compact />
+        <FromSpotify compact affiliateToken={affiliateToken} />
 
-        {playlist ? <PlaylistDocument playlist={playlist} providers={providers} mode="builder" /> : null}
+        {playlist ? (
+          <PlaylistDocument
+            playlist={playlist}
+            providers={providers}
+            mode="builder"
+            affiliateToken={affiliateToken}
+          />
+        ) : null}
       </main>
     </>
   )

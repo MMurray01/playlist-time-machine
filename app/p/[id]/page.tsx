@@ -3,7 +3,7 @@ import Link from "next/link"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import { PlaylistDocument } from "@/components/playlist-document"
-import { getProviderAvailability } from "@/lib/server/env"
+import { getAffiliateToken, getProviderAvailability } from "@/lib/server/env"
 import { getSharedPlaylistPage } from "@/lib/server/share"
 
 async function requestOrigin(): Promise<string> {
@@ -61,7 +61,12 @@ export default async function SharedPlaylistPage({ params }: { params: Promise<{
       <p className="wordmark">
         <Link href="/">Playlist Time Machine</Link>
       </p>
-      <PlaylistDocument playlist={page.playlist} providers={getProviderAvailability()} mode="shared" />
+      <PlaylistDocument
+        playlist={page.playlist}
+        providers={getProviderAvailability()}
+        mode="shared"
+        affiliateToken={getAffiliateToken()}
+      />
     </main>
   )
 }

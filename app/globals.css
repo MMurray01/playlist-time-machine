@@ -52,6 +52,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Home and its loading state reserve a full screen, so the footer stays below
+   the first viewport instead of jumping when the page streams in. */
+.sheet-screen {
+  box-sizing: border-box;
+  min-height: 100dvh;
+}
+
 .skip-link {
   position: absolute;
   left: 1rem;
@@ -568,13 +575,28 @@ body {
 .apple-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 44px;
+  padding: 4px;
+  line-height: 0;
+  background: transparent;
 }
 
 .apple-badge img {
   display: block;
   width: auto;
   height: 40px;
+  aspect-ratio: 250 / 83;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.courtesy {
+  margin: 0.35rem 0 0;
+  color: var(--ptm-ink-soft);
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 .track-button {
@@ -676,6 +698,11 @@ body {
 
 .song-dialog-actions .song-play {
   margin-top: 0;
+}
+
+.song-dialog-actions .courtesy {
+  margin: 0;
+  text-align: center;
 }
 
 .cover-detail {
@@ -891,9 +918,17 @@ body {
   text-decoration: none;
 }
 
+.site-footer .affiliate-disclosure {
+  max-width: 40rem;
+  margin: 0.85rem 0 0;
+  color: var(--ptm-ink);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 .site-footer .attribution {
   max-width: 40rem;
-  margin: 0.35rem 0 0;
+  margin: 0.75rem 0 0;
   line-height: 1.5;
 }
 

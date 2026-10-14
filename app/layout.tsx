@@ -41,7 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={sans.variable} style={theme}>
       <body className={sans.className}>
-        {children}
+        <div className="site-main">{children}</div>
         <SiteFooter />
         <Analytics />
       </body>

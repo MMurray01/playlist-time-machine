@@ -16,6 +16,7 @@ import type {
   YearChapter,
 } from "@/lib/playlist/types"
 import { playlistDescription } from "@/lib/playlist/window"
+import { appleLinkRel, withAppleAffiliate, type AffiliatePlacement } from "@/lib/affiliate"
 
 type LookupResult = {
   matches: MatchedTrack[]
@@ -129,6 +130,8 @@ function YearBlock({
   onBroken,
   playingKey,
   onTogglePlay,
+  badgePlacement,
+  affiliateToken,
 }: {
   chapter: YearChapter
   catalog: Record<string, MatchedTrack | null>
@@ -140,6 +143,8 @@ function YearBlock({
   onBroken: (key: string) => void
   playingKey: string | null
   onTogglePlay: (hit: ChartHit) => void
+  badgePlacement: AffiliatePlacement
+  affiliateToken: string | null
 }) {
   const ref = useRef<HTMLElement>(null)
   const hits = chapter.hits
@@ -244,7 +249,13 @@ function YearBlock({
                   >
                     {playingKey === key ? "Pause" : "Play"}
                   </button>
-                  <AppleMusicBadge url={entry?.url} title={hit.title} artist={hit.artist} />
+                  <AppleMusicBadge
+                    url={entry?.url}
+                    title={hit.title}
+                    artist={hit.artist}
+                    placement={badgePlacement}
+                    affiliateToken={affiliateToken}
+                  />
                 </div>
               </li>
             )
@@ -259,10 +270,12 @@ export function PlaylistDocument({
   playlist,
   providers,
   mode,
+  affiliateToken = null,
 }: {
   playlist: BuiltPlaylist
   providers: ProviderAvailability
   mode: "builder" | "shared"
+  affiliateToken?: string | null
 }) {
   const [name, setName] = useState(playlist.title)
   const [catalog, setCatalog] = useState<Record<string, MatchedTrack | null>>({})
@@ -285,6 +298,7 @@ export function PlaylistDocument({
   const previewAudio = useRef<HTMLAudioElement>(null)
   const titleTag = mode === "shared" ? "h1" : "h2"
   const Title = titleTag
+  const badgePlacement: AffiliatePlacement = mode === "shared" ? "share-page" : "preview-badge"
 
   useEffect(() => {
     generation.current += 1
@@ -661,7 +675,12 @@ export function PlaylistDocument({
         </p>
       ) : null}
       {playlistUrl ? (
-        <a className="linkish" href={playlistUrl}>
+        <a
+          className="linkish"
+          href={withAppleAffiliate(playlistUrl, "save-flow", affiliateToken)}
+          target="_blank"
+          rel={appleLinkRel(affiliateToken)}
+        >
           Open the saved playlist
         </a>
       ) : null}
@@ -712,6 +731,7 @@ export function PlaylistDocument({
         </button>
       </div>
       <audio ref={previewAudio} preload="none" onEnded={advancePreview} />
+      <p className="courtesy">Preview provided courtesy of Apple.</p>
 
       <div>
         {playlist.years.map((chapter) => (
@@ -727,6 +747,8 @@ export function PlaylistDocument({
             onBroken={(key) => setBrokenArt((current) => ({ ...current, [key]: true }))}
             playingKey={playingKey}
             onTogglePlay={playPreview}
+            badgePlacement={badgePlacement}
+            affiliateToken={affiliateToken}
           />
         ))}
       </div>
@@ -737,6 +759,8 @@ export function PlaylistDocument({
           hit={selected}
           match={selectedKey ? catalog[selectedKey] : undefined}
           canPlayFull={canPlayFull}
+          affiliateToken={affiliateToken}
+          placement={badgePlacement}
           onClose={() => setSelectedKey(null)}
           onPreview={() => {
             previewAudio.current?.pause()

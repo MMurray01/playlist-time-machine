@@ -1,6 +1,6 @@
 import { TimeMachine } from "@/components/time-machine"
 import { getChartYearSpan } from "@/lib/server/chart"
-import { getProviderAvailability } from "@/lib/server/env"
+import { getAffiliateToken, getProviderAvailability } from "@/lib/server/env"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +16,7 @@ export default async function HomePage() {
       libraryError={span.error}
       chartMinYear={span.minYear}
       chartMaxYear={span.maxYear}
+      affiliateToken={getAffiliateToken()}
     />
   )
 }

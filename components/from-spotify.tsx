@@ -1,9 +1,16 @@
 import Link from "next/link"
+import { appleLinkRel, withAppleAffiliate } from "@/lib/affiliate"
 
 const SUBSCRIBE_URL = "https://music.apple.com/us/subscribe"
 const TRANSFER_URL = "https://support.apple.com/en-us/118249"
 
-export function FromSpotify({ compact = false }: { compact?: boolean }) {
+export function FromSpotify({
+  compact = false,
+  affiliateToken = null,
+}: {
+  compact?: boolean
+  affiliateToken?: string | null
+}) {
   return (
     <section className="switch" aria-labelledby="from-spotify-title">
       {compact ? (
@@ -31,7 +38,12 @@ export function FromSpotify({ compact = false }: { compact?: boolean }) {
         </>
       )}
       <div className="switch-links">
-        <a className="linkish" href={SUBSCRIBE_URL} target="_blank" rel="noopener noreferrer">
+        <a
+          className="linkish"
+          href={withAppleAffiliate(SUBSCRIBE_URL, "from-spotify", affiliateToken)}
+          target="_blank"
+          rel={appleLinkRel(affiliateToken)}
+        >
           Try Apple Music or subscribe
         </a>
         <a className="linkish" href={TRANSFER_URL} target="_blank" rel="noopener noreferrer">

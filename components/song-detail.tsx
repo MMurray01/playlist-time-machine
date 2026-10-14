@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { AppleMusicBadge } from "@/components/apple-badge"
 import { loadMusicKit } from "@/components/musickit"
+import type { AffiliatePlacement } from "@/lib/affiliate"
 import type { ChartHit, MatchedTrack } from "@/lib/playlist/types"
 
 export function SongDetail({
@@ -11,12 +12,16 @@ export function SongDetail({
   canPlayFull,
   onClose,
   onPreview,
+  affiliateToken = null,
+  placement,
 }: {
   hit: ChartHit
   match: MatchedTrack | null | undefined
   canPlayFull: boolean
   onClose: () => void
   onPreview?: () => void
+  affiliateToken?: string | null
+  placement: AffiliatePlacement
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -137,11 +142,18 @@ export function SongDetail({
             <button type="button" className="btn btn-accent song-play" onClick={() => void togglePreview()}>
               {playing ? "Pause preview" : "Play 30-second preview"}
             </button>
+            <p className="courtesy">Preview provided courtesy of Apple.</p>
           </>
         ) : (
           <p className="quiet">{match === undefined ? "Looking up a preview." : "This song has no preview."}</p>
         )}
-        <AppleMusicBadge url={match?.url} title={hit.title} artist={hit.artist} />
+        <AppleMusicBadge
+          url={match?.url}
+          title={hit.title}
+          artist={hit.artist}
+          placement={placement}
+          affiliateToken={affiliateToken}
+        />
         {canPlayFull && match?.catalogId ? (
           <button type="button" className="btn btn-ghost song-play" onClick={() => void playFull()}>
             Play the full song
