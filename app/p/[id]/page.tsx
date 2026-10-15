@@ -2,7 +2,10 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
+import { MakeYours } from "@/components/make-yours"
 import { PlaylistDocument } from "@/components/playlist-document"
+import { graduationYearLimits } from "@/lib/playlist/window"
+import { getChartYearSpan } from "@/lib/server/chart"
 import { getAffiliateToken, getProviderAvailability } from "@/lib/server/env"
 import { getSharedPlaylistPage } from "@/lib/server/share"
 
@@ -68,7 +71,7 @@ export default async function SharedPlaylistPage({
 }) {
   const { id } = await params
   const query = await searchParams
-  const page = await getSharedPlaylistPage(id)
+  const [page, span] = await Promise.all([getSharedPlaylistPage(id), getChartYearSpan()])
   if (!page.ok && page.reason === "not_found") notFound()
   if (!page.ok) {
     return (
@@ -79,18 +82,22 @@ export default async function SharedPlaylistPage({
     )
   }
 
+  const limits = graduationYearLimits({ chartMinYear: span.minYear, chartMaxYear: span.maxYear })
+
   return (
-    <main className="sheet px-1 py-16 sm:py-24">
+    <main className="sheet share-received px-1 py-16 sm:py-24">
       <p className="wordmark">
         <Link href="/">Playlist Time Machine</Link>
       </p>
-      <PlaylistDocument
-        playlist={page.playlist}
-        providers={getProviderAvailability()}
-        mode="shared"
-        affiliateToken={getAffiliateToken()}
-        openCollage={query.collage === "1"}
-      />
+      <MakeYours sharedYear={page.playlist.graduationYear} limits={limits} libraryError={span.error}>
+        <PlaylistDocument
+          playlist={page.playlist}
+          providers={getProviderAvailability()}
+          mode="shared"
+          affiliateToken={getAffiliateToken()}
+          openCollage={query.collage === "1"}
+        />
+      </MakeYours>
     </main>
   )
 }

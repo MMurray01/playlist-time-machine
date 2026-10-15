@@ -312,7 +312,7 @@ export function PlaylistDocument({
   const previewAudio = useRef<HTMLAudioElement>(null)
   const collageLinkRef = useRef<HTMLButtonElement>(null)
   const seenPlaylist = useRef(playlist)
-  const titleTag = mode === "shared" ? "h1" : "h2"
+  const titleTag = "h2"
   const Title = titleTag
   const badgePlacement: AffiliatePlacement = mode === "shared" ? "share-page" : "preview-badge"
 
