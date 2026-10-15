@@ -5,7 +5,7 @@ import { buildPlaylist } from "@/lib/playlist/hits"
 import {
   abusivePlaylistTitle,
   appleAppSiteAssociation,
-  APPLE_TEAM_ID_PLACEHOLDER,
+  APPLE_TEAM_ID,
   availableGenres,
   buildPlaylistPayload,
   IOS_BUNDLE_ID,
@@ -143,11 +143,12 @@ describe("iOS API contract", () => {
     expect(share.message.startsWith("My Class of 1984 playlist:")).toBe(true)
   })
 
-  it("publishes a placeholder team id on the playlist path only", () => {
+  it("publishes the Apple team id on the playlist path only", () => {
     const file = appleAppSiteAssociation()
     const encoded = JSON.stringify(file)
-    expect(encoded).toContain(`${APPLE_TEAM_ID_PLACEHOLDER}.${IOS_BUNDLE_ID}`)
-    expect(encoded).toContain("REPLACE_WITH_APPLE_TEAM_ID")
+    expect(encoded).toContain(`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`)
+    expect(encoded).toContain("WS2R3SYV4W.com.abeba.playlisttimemachine")
+    expect(encoded).not.toContain("REPLACE_WITH_APPLE_TEAM_ID")
     expect(file.applinks.details[0]?.components.map((component) => component["/"])).toEqual([
       "/p/*/opengraph-image",
       "/p/*",
@@ -163,7 +164,7 @@ describe("iOS API contract", () => {
     const swift = readTree("ios")
     expect(project).toContain("com.abeba.playlisttimemachine")
     expect(project).toContain('IPHONEOS_DEPLOYMENT_TARGET: "16.0"')
-    expect(project).not.toContain("DEVELOPMENT_TEAM:")
+    expect(project).toContain("DEVELOPMENT_TEAM: WS2R3SYV4W")
     expect(entitlements).toContain("applinks:www.playlisttimemachine.com")
     expect(entitlements).toContain("applinks:playlisttimemachine.com")
     expect(entitlements).toContain("com.apple.developer.musickit")

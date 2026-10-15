@@ -68,4 +68,14 @@ The native app calls two routes. The website still builds and shares playlists t
 | `POST /api/share` | Creates the same `shared_playlists` row as the website. The body is `{ graduationYear, title, genres }`. The service role key stays on the server. |
 | `/.well-known/apple-app-site-association` | Universal links for `/p/*`. |
 
-`APPLE_TEAM_ID_PLACEHOLDER` in `lib/playlist/ios-api.ts` is not a real Team ID. Replace `REPLACE_WITH_APPLE_TEAM_ID` with the 10-character Team ID from the Apple Developer account, then redeploy, before the iOS app can claim the links. Apple does not follow redirects for this file. `playlisttimemachine.com` currently redirects to `www`, so the file has to be served on `https://www.playlisttimemachine.com/.well-known/apple-app-site-association` with `Content-Type: application/json`. The apex association will not verify until that host serves the file without a redirect.
+The association file uses app id `WS2R3SYV4W.com.abeba.playlisttimemachine`. Apple does not follow redirects when it fetches this file, and the response must be `200` with `Content-Type: application/json`.
+
+`www.playlisttimemachine.com` is attached to production with no redirect, so `https://www.playlisttimemachine.com/.well-known/apple-app-site-association` is served by this route once the app is deployed.
+
+`playlisttimemachine.com` is a Vercel domain redirect to `www.playlisttimemachine.com` (HTTP 307, `text/plain`, issued by Vercel before Next.js). No app route, `next.config` redirect, or middleware can answer that path on the apex while the domain redirect is on. Do not add `vercel.json`. To let Apple verify `applinks:playlisttimemachine.com`:
+
+1. In the Vercel project `v0-playlist-time-machine-jv`, open Settings → Domains.
+2. Edit `playlisttimemachine.com` and turn off **Redirect to** `www.playlisttimemachine.com`. Assign the apex to Production with no redirect, so both hosts reach this Next.js app.
+3. After that, add an application redirect that sends every apex path except `/.well-known/apple-app-site-association` to the same path on `https://www.playlisttimemachine.com`. Leave the association file itself as a `200` with no `Location` header.
+
+Until step 2 is done in the dashboard, the apex association file cannot be verified. This change is not made from the repo.

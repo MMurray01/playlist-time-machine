@@ -2,7 +2,7 @@
 
 SwiftUI and MusicKit app for iOS 16 and later. It reads playlists from `GET /api/playlist` and creates share links with `POST /api/share`, so the Apple Music server key stays on the website.
 
-The Xcode project is generated from `project.yml`. The signing team is unset until the Abeba Co Apple Developer account is approved.
+The Xcode project is generated from `project.yml`. Signing uses team `WS2R3SYV4W`.
 
 ## Open it
 
@@ -14,7 +14,7 @@ xcodegen generate
 open PlaylistTimeMachine.xcodeproj
 ```
 
-In Xcode, leave Signing Team empty until the account exists. The bundle id is `com.abeba.playlisttimemachine`. The display name is Playlist Time Machine.
+In Xcode, the signing team is `WS2R3SYV4W`. The bundle id is `com.abeba.playlisttimemachine`. The display name is Playlist Time Machine.
 
 `PTMAPIBaseURL` in `Info.plist` points at `https://www.playlisttimemachine.com`. Change it only to call a preview deployment.
 

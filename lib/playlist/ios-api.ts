@@ -12,14 +12,11 @@ import { recipientPrompt, recipientQuestion } from "@/lib/share/recipient"
 import type { BuiltPlaylist, ChartHit, MatchedTrack, UnmatchedTrack, YearStory } from "@/lib/playlist/types"
 import { cleanPlaylistTitle } from "@/lib/playlist/window"
 
-/** Placeholder bundle id until the Abeba Co developer account is approved. */
+/** Bundle id registered for the Abeba Co Apple Developer account. */
 export const IOS_BUNDLE_ID = "com.abeba.playlisttimemachine"
 
-/**
- * Not a real Apple Team ID. Replace every occurrence with the 10-character
- * Team ID from developer.apple.com → Membership Details before the app ships.
- */
-export const APPLE_TEAM_ID_PLACEHOLDER = "REPLACE_WITH_APPLE_TEAM_ID"
+/** Team ID from developer.apple.com → Membership Details. */
+export const APPLE_TEAM_ID = "WS2R3SYV4W"
 
 export const ITUNES_PREVIEW_ATTRIBUTION = "Song previews provided courtesy of iTunes."
 
@@ -39,12 +36,12 @@ const BLOCKED_TITLE_WORDS = [
   "retard",
 ]
 
-export function appleAppID(teamID = APPLE_TEAM_ID_PLACEHOLDER): string {
+export function appleAppID(teamID = APPLE_TEAM_ID): string {
   return `${teamID}.${IOS_BUNDLE_ID}`
 }
 
-/** Association file for https://www.playlisttimemachine.com/p/* universal links. */
-export function appleAppSiteAssociation(teamID = APPLE_TEAM_ID_PLACEHOLDER) {
+/** Association file for /p/* universal links on www and the apex host. */
+export function appleAppSiteAssociation(teamID = APPLE_TEAM_ID) {
   return {
     applinks: {
       details: [

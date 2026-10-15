@@ -14,10 +14,9 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     TARGETED_DEVICE_FAMILY: "1,2"
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: WS2R3SYV4W
     SUPPORTS_MACCATALYST: NO
     ENABLE_USER_SCRIPT_SANDBOXING: YES
-# The signing team is left unset. The Abeba Co Apple Developer account is still
-# pending approval. Choose the team in Xcode after that account is approved.
 targets:
   PlaylistTimeMachine:
     type: application
