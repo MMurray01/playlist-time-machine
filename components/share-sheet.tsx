@@ -23,6 +23,25 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError"
 }
 
+async function writeClipboard(text: string, parent: HTMLElement | null): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    const area = document.createElement("textarea")
+    area.value = text
+    area.setAttribute("readonly", "")
+    area.style.position = "fixed"
+    area.style.opacity = "0"
+    ;(parent ?? document.body).appendChild(area)
+    area.focus()
+    area.select()
+    const ok = document.execCommand("copy")
+    area.remove()
+    return ok
+  }
+}
+
 function wantsNativeShare(): boolean {
   return window.matchMedia("(pointer: coarse)").matches && typeof navigator.share === "function"
 }
@@ -165,12 +184,8 @@ export function ShareLaunch({
   async function copy(source: ShareSource, success: string) {
     if (!pageUrl) return
     const text = source === "copy" ? withShareUtm(pageUrl, source) : shareMessage(target, withShareUtm(pageUrl, source), year)
-    try {
-      await navigator.clipboard.writeText(text)
-      setNote(success)
-    } catch {
-      setNote("Copy this text from the share sheet.")
-    }
+    const ok = await writeClipboard(text, dialogRef.current)
+    setNote(ok ? success : "Copy this text from the share sheet.")
   }
 
   function downloadImage() {
