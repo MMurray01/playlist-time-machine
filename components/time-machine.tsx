@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { generatePlaylistAction } from "@/actions/playlist-actions"
 import { trackEvent } from "@/lib/analytics"
 import { FromSpotify } from "@/components/from-spotify"
+import { HeroWall } from "@/components/hero-wall"
 import { PlaylistDocument } from "@/components/playlist-document"
 import { ShareLaunch } from "@/components/share-sheet"
 import type { BuiltPlaylist, ProviderAvailability } from "@/lib/playlist/types"
@@ -129,7 +130,10 @@ export function TimeMachine({
       <a className="skip-link" href="#graduation-year">
         Skip to graduation year
       </a>
-      <main className="sheet sheet-screen px-1 py-16 sm:py-24">
+      <main className={playlist ? undefined : "sheet-screen"}>
+        <div className="home-stage">
+          <HeroWall />
+          <div className="sheet home-hero-copy px-1 py-16 sm:py-24">
         <header className="mast">
           <div className="mast-bar">
             <p className="wordmark">Playlist Time Machine</p>
@@ -214,14 +218,18 @@ export function TimeMachine({
         </form>
 
         <FromSpotify compact affiliateToken={affiliateToken} />
+          </div>
+        </div>
 
         {playlist ? (
+          <div className="sheet px-1 pb-16">
           <PlaylistDocument
             playlist={playlist}
             providers={providers}
             mode="builder"
             affiliateToken={affiliateToken}
           />
+          </div>
         ) : null}
       </main>
     </>
