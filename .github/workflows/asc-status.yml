@@ -4,12 +4,6 @@ name: App Store Connect status
 # Does not archive or upload. Secrets: ASC_ISSUER_ID, ASC_KEY_ID, ASC_PRIVATE_KEY.
 
 on:
-  push:
-    branches:
-      - cursor/ios-app-v1-d049
-    paths:
-      - ".github/workflows/asc-status.yml"
-      - ".github/scripts/asc_status.py"
   workflow_dispatch:
 
 jobs:
