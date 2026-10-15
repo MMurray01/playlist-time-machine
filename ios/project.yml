@@ -1,0 +1,56 @@
+name: PlaylistTimeMachine
+options:
+  bundleIdPrefix: com.abeba
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  minimumXcodeGenVersion: "2.38.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGN_STYLE: Automatic
+    SUPPORTS_MACCATALYST: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+# The signing team is left unset. The Abeba Co Apple Developer account is still
+# pending approval. Choose the team in Xcode after that account is approved.
+targets:
+  PlaylistTimeMachine:
+    type: application
+    platform: iOS
+    sources:
+      - path: PlaylistTimeMachine
+        excludes:
+          - Info.plist
+          - PlaylistTimeMachine.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.abeba.playlisttimemachine
+        PRODUCT_NAME: PlaylistTimeMachine
+        INFOPLIST_FILE: PlaylistTimeMachine/Info.plist
+        CODE_SIGN_ENTITLEMENTS: PlaylistTimeMachine/PlaylistTimeMachine.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.0"
+    scheme:
+      testTargets:
+        - PlaylistTimeMachineTests
+  PlaylistTimeMachineTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PlaylistTimeMachineTests
+    dependencies:
+      - target: PlaylistTimeMachine
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.abeba.playlisttimemachine.tests
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"

@@ -1,0 +1,53 @@
+import SwiftUI
+
+@main
+struct PlaylistTimeMachineApp: App {
+    @StateObject private var model = AppModel()
+    @StateObject private var playback = PlaybackController()
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environmentObject(model)
+                .environmentObject(playback)
+                .musicSubscriptionOffer(isPresented: $playback.showOffer, options: playback.offerOptions)
+                .onOpenURL { model.open(url: $0) }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    guard let url = activity.webpageURL else { return }
+                    model.open(url: url)
+                }
+        }
+    }
+}
+
+struct RootView: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if model.showingPlaylist {
+                    PlaylistView()
+                } else {
+                    YearPickerView()
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            TransportBar()
+        }
+        .sheet(item: $model.selectedHit) { hit in
+            SongDetailView(hit: hit)
+        }
+        .background {
+            if let draft = model.shareDraft {
+                ActivityPresenter(items: draft.items) {
+                    model.shareDraft = nil
+                }
+                .id(draft.id)
+                .frame(width: 1, height: 1)
+            }
+        }
+        .preferredColorScheme(.light)
+    }
+}

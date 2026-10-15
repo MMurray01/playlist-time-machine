@@ -8,3 +8,7 @@ coverage
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+ios/build/
+ios/*.xcodeproj/
+ios/**/xcuserdata/
+DerivedData/

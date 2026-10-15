@@ -57,3 +57,15 @@ People who already use another service can read `/from-spotify`. That page links
 2. Add the Supabase and Apple Music variables above.
 3. Open `/`, enter `1984`, and choose **Build my playlist**. The hit count is the library’s row count. Class of 1984 is 255 songs, starting with Too Much Heaven, Da Ya Think I'm Sexy?, and I Will Survive.
 4. **Save to Apple Music** is the save button. Share is next to it.
+
+## iOS app routes
+
+The native app calls two routes. The website still builds and shares playlists through its server actions, and these routes do not change those pages.
+
+| Route | Use |
+| --- | --- |
+| `GET /api/playlist?year=&genres=` | The eleven-year playlist, catalog matches, and the square playlist artwork. `GET /api/playlist` with no year returns the year limits. `GET /api/playlist?id=` opens a share link. |
+| `POST /api/share` | Creates the same `shared_playlists` row as the website. The body is `{ graduationYear, title, genres }`. The service role key stays on the server. |
+| `/.well-known/apple-app-site-association` | Universal links for `/p/*`. |
+
+`APPLE_TEAM_ID_PLACEHOLDER` in `lib/playlist/ios-api.ts` is not a real Team ID. Replace `REPLACE_WITH_APPLE_TEAM_ID` with the 10-character Team ID from the Apple Developer account, then redeploy, before the iOS app can claim the links. Apple does not follow redirects for this file. `playlisttimemachine.com` currently redirects to `www`, so the file has to be served on `https://www.playlisttimemachine.com/.well-known/apple-app-site-association` with `Content-Type: application/json`. The apex association will not verify until that host serves the file without a redirect.

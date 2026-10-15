@@ -1,0 +1,34 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build for the iOS Simulator
+        working-directory: ios
+        run: >
+          xcodebuild
+          -project PlaylistTimeMachine.xcodeproj
+          -scheme PlaylistTimeMachine
+          -destination 'generic/platform=iOS Simulator'
+          -quiet
+          CODE_SIGNING_ALLOWED=NO
+          build
