@@ -92,10 +92,12 @@ jobs:
             -authenticationKeyPath "${KEY_PATH}" \
             -authenticationKeyID "${ASC_KEY_ID}" \
             -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            DEVELOPMENT_TEAM=WS2R3SYV4W \
-            CODE_SIGN_STYLE=Automatic \
-            archive
+          CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+          DEVELOPMENT_TEAM=WS2R3SYV4W \
+          CODE_SIGN_STYLE=Automatic \
+          CODE_SIGN_IDENTITY="Apple Distribution" \
+          "CODE_SIGN_IDENTITY[sdk=iphoneos*]"="Apple Distribution" \
+          archive
 
       - name: Export and upload to App Store Connect
         if: steps.secrets.outputs.present == 'true'
