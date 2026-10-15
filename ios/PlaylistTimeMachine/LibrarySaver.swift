@@ -60,11 +60,8 @@ enum LibrarySaver {
             authorDisplayName: "Playlist Time Machine",
             items: first
         )
-        var offset = 100
-        while offset < songs.count {
-            let end = min(offset + 100, songs.count)
-            try await MusicLibrary.shared.add(Array(songs[offset..<end]), to: playlist)
-            offset = end
+        for song in songs.dropFirst(100) {
+            try await MusicLibrary.shared.add(song, to: playlist)
         }
         return playlist
     }
