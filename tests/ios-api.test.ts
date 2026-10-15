@@ -167,7 +167,7 @@ describe("iOS API contract", () => {
     expect(project).toContain("DEVELOPMENT_TEAM: WS2R3SYV4W")
     expect(entitlements).toContain("applinks:www.playlisttimemachine.com")
     expect(entitlements).toContain("applinks:playlisttimemachine.com")
-    expect(entitlements).toContain("com.apple.developer.musickit")
+    expect(entitlements).not.toContain("musickit")
     expect(info).toContain("Playlist Time Machine")
     expect(info).toContain("NSAppleMusicUsageDescription")
     expect(info).toMatch(/<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/)
