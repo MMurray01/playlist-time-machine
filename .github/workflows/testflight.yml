@@ -1,0 +1,142 @@
+name: TestFlight
+
+# Uploads an App Store archive for cursor/ios-app-v1-d049.
+# Repository secrets, all required:
+#   ASC_ISSUER_ID    App Store Connect API issuer ID
+#   ASC_KEY_ID       App Store Connect API key ID
+#   ASC_PRIVATE_KEY  Contents of the AuthKey .p8 file
+# The build number is the GitHub Actions run number.
+
+on:
+  push:
+    branches:
+      - cursor/ios-app-v1-d049
+  workflow_dispatch:
+
+concurrency:
+  group: testflight-cursor-ios-app-v1-d049
+  cancel-in-progress: true
+
+jobs:
+  upload:
+    name: Upload to TestFlight
+    runs-on: macos-15
+    steps:
+      - name: Require App Store Connect secrets
+        id: secrets
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          missing=()
+          [ -z "${ASC_ISSUER_ID}" ] && missing+=(ASC_ISSUER_ID)
+          [ -z "${ASC_KEY_ID}" ] && missing+=(ASC_KEY_ID)
+          [ -z "${ASC_PRIVATE_KEY}" ] && missing+=(ASC_PRIVATE_KEY)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=TestFlight upload skipped::Missing repository secrets: ${missing[*]}. Add ASC_ISSUER_ID, ASC_KEY_ID, and ASC_PRIVATE_KEY (the .p8 file contents), then rerun this workflow."
+            exit 0
+          fi
+          echo "present=true" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.present == 'true'
+
+      - name: Install XcodeGen
+        if: steps.secrets.outputs.present == 'true'
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        if: steps.secrets.outputs.present == 'true'
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Write the App Store Connect API key
+        if: steps.secrets.outputs.present == 'true'
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+        run: |
+          set +x
+          umask 077
+          python3 - << 'PY'
+          import os
+          import pathlib
+          raw = os.environ["ASC_PRIVATE_KEY"].replace("\\n", "\n")
+          if not raw.endswith("\n"):
+              raw += "\n"
+          path = pathlib.Path(os.environ["KEY_PATH"])
+          path.write_text(raw)
+          path.chmod(0o600)
+          if "PRIVATE KEY" not in raw:
+              raise SystemExit("ASC_PRIVATE_KEY does not contain a PEM private key.")
+          PY
+          echo "KEY_PATH=${KEY_PATH}" >> "${GITHUB_ENV}"
+
+      - name: Archive for App Store Connect
+        if: steps.secrets.outputs.present == 'true'
+        working-directory: ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          echo "Build number: ${{ github.run_number }}"
+          xcodebuild \
+            -project PlaylistTimeMachine.xcodeproj \
+            -scheme PlaylistTimeMachine \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "${KEY_PATH}" \
+            -authenticationKeyID "${ASC_KEY_ID}" \
+            -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            DEVELOPMENT_TEAM=WS2R3SYV4W \
+            CODE_SIGN_STYLE=Automatic \
+            archive
+
+      - name: Export and upload to App Store Connect
+        if: steps.secrets.outputs.present == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          cat > "${RUNNER_TEMP}/ExportOptions.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>destination</key>
+          	<string>upload</string>
+          	<key>manageAppVersionAndBuildNumber</key>
+          	<false/>
+          	<key>method</key>
+          	<string>app-store-connect</string>
+          	<key>signingStyle</key>
+          	<string>automatic</string>
+          	<key>teamID</key>
+          	<string>WS2R3SYV4W</string>
+          	<key>uploadSymbols</key>
+          	<true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild \
+            -exportArchive \
+            -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
+            -exportPath "${RUNNER_TEMP}/export" \
+            -exportOptionsPlist "${RUNNER_TEMP}/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "${KEY_PATH}" \
+            -authenticationKeyID "${ASC_KEY_ID}" \
+            -authenticationKeyIssuerID "${ASC_ISSUER_ID}"
+          {
+            echo "### TestFlight"
+            echo "Uploaded build ${{ github.run_number }} (version 1.0) to App Store Connect."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Remove the API key file
+        if: always() && steps.secrets.outputs.present == 'true'
+        run: rm -f "${RUNNER_TEMP}/AuthKey.p8"

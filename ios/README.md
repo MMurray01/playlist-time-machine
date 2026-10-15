@@ -25,3 +25,9 @@ Enter a graduation year. The app shows that eleven-year window of number one hit
 The square cover collage is the playlist artwork. It is labeled with the playlist and, once the share link exists, the `/p/<id>` URL. Share sends the story image and that link together. Save creates the Apple Music playlist with the same title and description rules as the website.
 
 Opening a `https://www.playlisttimemachine.com/p/<id>` link shows that playlist and asks for your own graduation year.
+
+## TestFlight
+
+`.github/workflows/testflight.yml` runs on a push to `cursor/ios-app-v1-d049` and from Actions → Run workflow. It archives with automatic signing and uploads to App Store Connect. The build number is the GitHub Actions run number. `ITSAppUsesNonExemptEncryption` is false.
+
+The workflow reads three repository secrets: `ASC_ISSUER_ID`, `ASC_KEY_ID`, and `ASC_PRIVATE_KEY`. `ASC_PRIVATE_KEY` is the contents of the App Store Connect API key (`.p8`). If any of them is missing, the job says so and does not upload.
