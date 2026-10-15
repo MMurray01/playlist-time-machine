@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { ShareLaunch } from "@/components/share-sheet"
 import { getAffiliateToken } from "@/lib/server/env"
 
 export function SiteFooter() {
@@ -11,6 +12,8 @@ export function SiteFooter() {
         <Link href="/privacy">Privacy</Link>
         <span aria-hidden="true">·</span>
         <Link href="/terms">Terms</Link>
+        <span aria-hidden="true">·</span>
+        <ShareLaunch target="site" className="footer-share" />
         <span aria-hidden="true">·</span>
         <span>a product of abeba co</span>
       </nav>

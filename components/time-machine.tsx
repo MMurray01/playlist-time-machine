@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { generatePlaylistAction } from "@/actions/playlist-actions"
 import { FromSpotify } from "@/components/from-spotify"
 import { PlaylistDocument } from "@/components/playlist-document"
+import { ShareLaunch } from "@/components/share-sheet"
 import type { BuiltPlaylist, ProviderAvailability } from "@/lib/playlist/types"
 import {
   currentCalendarYear,
@@ -109,7 +110,10 @@ export function TimeMachine({
       </a>
       <main className="sheet sheet-screen px-1 py-16 sm:py-24">
         <header className="mast">
-          <p className="wordmark">Playlist Time Machine</p>
+          <div className="mast-bar">
+            <p className="wordmark">Playlist Time Machine</p>
+            <ShareLaunch target="site" />
+          </div>
           <h1>Rediscover the soundtrack of your life</h1>
           <p className="lede">
             Your first dance, graduation, those long summer nights. Enter your high school graduation year and get
