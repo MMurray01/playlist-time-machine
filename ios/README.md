@@ -30,4 +30,4 @@ Opening a `https://www.playlisttimemachine.com/p/<id>` link shows that playlist 
 
 `.github/workflows/testflight.yml` runs on a push to `cursor/ios-app-v1-d049` and from Actions → Run workflow. It archives with automatic signing and uploads to App Store Connect. The build number is the GitHub Actions run number. `ITSAppUsesNonExemptEncryption` is false.
 
-The workflow reads three repository secrets: `ASC_ISSUER_ID`, `ASC_KEY_ID`, and `ASC_PRIVATE_KEY`. `ASC_PRIVATE_KEY` is the contents of the App Store Connect API key (`.p8`). If any of them is missing, the job says so and does not upload.
+The workflow reads three repository secrets: `ASC_ISSUER_ID`, `ASC_KEY_ID`, and `ASC_PRIVATE_KEY`. `ASC_ISSUER_ID` is the Issuer ID UUID at the top of App Store Connect → Users and Access → Integrations → Team Keys, not the Team ID. `ASC_KEY_ID` is that key's Key ID. `ASC_PRIVATE_KEY` is the contents of its `.p8` file. The key needs the Admin role so Xcode can cloud-sign the App Store build. If any secret is missing, the job says so and does not upload.

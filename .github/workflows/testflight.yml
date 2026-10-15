@@ -64,19 +64,173 @@ jobs:
           python3 - << 'PY'
           import os
           import pathlib
-          raw = os.environ["ASC_PRIVATE_KEY"].replace("\\n", "\n").strip() + "\n"
+          import re
+          import subprocess
+
           key_id = "".join(os.environ["ASC_KEY_ID"].split())
           issuer = "".join(os.environ["ASC_ISSUER_ID"].split())
-          path = pathlib.Path.home() / "private_keys" / f"AuthKey_{key_id}.p8"
-          path.parent.mkdir(mode=0o700, exist_ok=True)
-          path.write_text(raw)
-          path.chmod(0o600)
-          if "PRIVATE KEY" not in raw:
-              raise SystemExit("ASC_PRIVATE_KEY does not contain a PEM private key.")
+          text = (
+              os.environ["ASC_PRIVATE_KEY"]
+              .replace("\\n", "\n")
+              .replace("\r\n", "\n")
+              .replace("\r", "\n")
+              .strip()
+              .strip('"')
+              .strip("'")
+          )
+          match = re.search(
+              r"-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----(.*?)-----END \1PRIVATE KEY-----",
+              text,
+              re.S,
+          )
+          if not match:
+              raise SystemExit(
+                  "ASC_PRIVATE_KEY is not a PEM private key. Paste the .p8 file contents, including the BEGIN and END lines."
+              )
+          body = re.sub(r"\s+", "", match.group(2))
+          if not re.fullmatch(r"[A-Za-z0-9+/=]+", body):
+              raise SystemExit("ASC_PRIVATE_KEY is not valid base64. Paste the .p8 file again.")
+          wrapped = "\n".join(body[i : i + 64] for i in range(0, len(body), 64))
+          label = match.group(1)
+          pem = f"-----BEGIN {label}PRIVATE KEY-----\n{wrapped}\n-----END {label}PRIVATE KEY-----\n"
+
+          print(f"ASC_ISSUER_ID length {len(issuer)}")
+          print(f"ASC_KEY_ID length {len(key_id)}")
+          if not re.fullmatch(
+              r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+              issuer,
+          ):
+              raise SystemExit(
+                  "ASC_ISSUER_ID is not the Issuer ID UUID from App Store Connect "
+                  "(Users and Access, Integrations, Team Keys). The Team ID WS2R3SYV4W is a different value. "
+                  "Update the ASC_ISSUER_ID secret and rerun."
+              )
+          if not re.fullmatch(r"[A-Za-z0-9]{10}", key_id):
+              raise SystemExit(
+                  "ASC_KEY_ID is not a 10-character App Store Connect Key ID. "
+                  "Update ASC_KEY_ID to the Key ID of the Admin API key and rerun."
+              )
+
+          home = pathlib.Path.home()
+          directories = [
+              home / "private_keys",
+              home / ".private_keys",
+              home / ".appstoreconnect" / "private_keys",
+              pathlib.Path("private_keys"),
+          ]
+          primary = home / "private_keys" / f"AuthKey_{key_id}.p8"
+          for directory in directories:
+              directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+              for name in (f"AuthKey_{key_id}.p8", f"ApiKey_{key_id}.p8"):
+                  path = directory / name
+                  path.write_text(pem)
+                  path.chmod(0o600)
+          parsed = subprocess.run(
+              ["openssl", "pkey", "-in", str(primary), "-noout"],
+              capture_output=True,
+              text=True,
+          )
+          if parsed.returncode != 0:
+              raise SystemExit(
+                  "ASC_PRIVATE_KEY could not be parsed as a private key. "
+                  "Paste the .p8 downloaded for this Key ID again."
+              )
           with pathlib.Path(os.environ["GITHUB_ENV"]).open("a") as handle:
-              handle.write(f"KEY_PATH={path}\n")
+              handle.write(f"KEY_PATH={primary}\n")
               handle.write(f"ASC_KEY_ID={key_id}\n")
               handle.write(f"ASC_ISSUER_ID={issuer}\n")
+              handle.write(f"API_PRIVATE_KEYS_DIR={primary.parent}\n")
+          print("Wrote the API key for altool and Xcode.")
+          PY
+
+      - name: Verify the App Store Connect API key
+        if: steps.secrets.outputs.present == 'true'
+        run: |
+          set +x
+          python3 - << 'PY'
+          import base64
+          import json
+          import os
+          import subprocess
+          import time
+          import urllib.error
+          import urllib.request
+
+          def b64url(data: bytes) -> str:
+              return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+          def der_to_raw(der: bytes) -> bytes:
+              index = 0
+
+              def read_length(buf, cursor):
+                  length = buf[cursor]
+                  cursor += 1
+                  if length < 0x80:
+                      return length, cursor
+                  count = length & 0x7F
+                  length = int.from_bytes(buf[cursor : cursor + count], "big")
+                  return length, cursor + count
+
+              if der[index] != 0x30:
+                  raise SystemExit("OpenSSL returned a signature this workflow could not read.")
+              index += 1
+              _, index = read_length(der, index)
+
+              def read_int(buf, cursor):
+                  if buf[cursor] != 0x02:
+                      raise SystemExit("OpenSSL returned a signature this workflow could not read.")
+                  cursor += 1
+                  length, cursor = read_length(buf, cursor)
+                  value = buf[cursor : cursor + length].lstrip(b"\x00") or b"\x00"
+                  return value.rjust(32, b"\x00"), cursor + length
+
+              part_r, index = read_int(der, index)
+              part_s, index = read_int(der, index)
+              if len(part_r) != 32 or len(part_s) != 32:
+                  raise SystemExit("The API key is not a P-256 key.")
+              return part_r + part_s
+
+          key_id = os.environ["ASC_KEY_ID"]
+          issuer = os.environ["ASC_ISSUER_ID"]
+          now = int(time.time())
+          header = b64url(json.dumps({"alg": "ES256", "kid": key_id, "typ": "JWT"}, separators=(",", ":")).encode())
+          payload = b64url(
+              json.dumps(
+                  {"iss": issuer, "iat": now - 60, "exp": now + 600, "aud": "appstoreconnect-v1"},
+                  separators=(",", ":"),
+              ).encode()
+          )
+          signing_input = f"{header}.{payload}".encode()
+          signed = subprocess.run(
+              ["openssl", "dgst", "-sha256", "-sign", os.environ["KEY_PATH"], "-binary"],
+              input=signing_input,
+              capture_output=True,
+          )
+          if signed.returncode != 0:
+              raise SystemExit("Could not sign an App Store Connect token with ASC_PRIVATE_KEY.")
+          token = signing_input.decode() + "." + b64url(der_to_raw(signed.stdout))
+          request = urllib.request.Request(
+              "https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=com.abeba.playlisttimemachine&limit=1",
+              headers={"Authorization": f"Bearer {token}"},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  body = response.read().decode()
+                  status = response.status
+          except urllib.error.HTTPError as error:
+              detail = error.read().decode(errors="replace")[:500]
+              raise SystemExit(
+                  "App Store Connect rejected this API key "
+                  f"(HTTP {error.code}). Confirm ASC_KEY_ID is the Admin key, ASC_PRIVATE_KEY is the .p8 downloaded for that key, "
+                  "and ASC_ISSUER_ID is the Issuer ID at the top of Users and Access, Integrations, Team Keys. "
+                  f"Apple said: {detail}"
+              )
+          count = len(json.loads(body).get("data", []))
+          print(f"App Store Connect accepted the API key (HTTP {status}, apps with this bundle id: {count}).")
+          if count == 0:
+              raise SystemExit(
+                  "The API key works, but App Store Connect has no app with bundle id com.abeba.playlisttimemachine."
+              )
           PY
 
       - name: Archive for App Store Connect
@@ -152,8 +306,21 @@ jobs:
             echo "Export did not produce an ipa."
             exit 1
           fi
+          sign_tmp="$(mktemp -d)"
+          unzip -q "${ipa}" -d "${sign_tmp}"
+          app="$(find "${sign_tmp}/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          codesign -dv --verbose=4 "${app}" > "${RUNNER_TEMP}/codesign.txt" 2>&1
+          echo "Codesign identity:"
+          grep -E "Authority=|Identifier=|TeamIdentifier=" "${RUNNER_TEMP}/codesign.txt"
+          if ! grep -q "Authority=Apple Distribution" "${RUNNER_TEMP}/codesign.txt"; then
+            echo "The IPA is not signed with an Apple Distribution certificate, so it cannot be uploaded."
+            exit 1
+          fi
+          # altool searches ./private_keys, ~/private_keys, ~/.private_keys,
+          # and ~/.appstoreconnect/private_keys for AuthKey_<id>.p8.
           xcrun altool --upload-app \
             --file "${ipa}" \
+            --type ios \
             --apiKey "${ASC_KEY_ID}" \
             --apiIssuer "${ASC_ISSUER_ID}"
           {
@@ -163,4 +330,14 @@ jobs:
 
       - name: Remove the API key file
         if: always() && steps.secrets.outputs.present == 'true'
-        run: rm -f "${KEY_PATH}"
+        run: |
+          rm -f \
+            "${KEY_PATH}" \
+            "${HOME}/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            "${HOME}/private_keys/ApiKey_${ASC_KEY_ID}.p8" \
+            "${HOME}/.private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            "${HOME}/.private_keys/ApiKey_${ASC_KEY_ID}.p8" \
+            "${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            "${HOME}/.appstoreconnect/private_keys/ApiKey_${ASC_KEY_ID}.p8" \
+            "private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            "private_keys/ApiKey_${ASC_KEY_ID}.p8"

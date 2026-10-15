@@ -12,3 +12,4 @@ ios/build/
 ios/*.xcodeproj/
 ios/**/xcuserdata/
 DerivedData/
+private_keys/
