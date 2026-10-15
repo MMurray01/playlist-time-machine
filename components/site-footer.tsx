@@ -15,7 +15,7 @@ export function SiteFooter() {
         <span aria-hidden="true">·</span>
         <ShareLaunch target="site" className="footer-share" />
         <span aria-hidden="true">·</span>
-        <span>a product of abeba co</span>
+        <span>a product of Abeba Co</span>
       </nav>
       {affiliate ? (
         <p className="affiliate-disclosure">
