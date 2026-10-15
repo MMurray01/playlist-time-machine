@@ -1,5 +1,7 @@
+import { JsonLd } from "@/components/json-ld"
 import { TimeMachine } from "@/components/time-machine"
-import { recipientYearFromQuery } from "@/lib/share/recipient"
+import { homeJsonLd } from "@/lib/seo/jsonld"
+import { recipientYearFromQuery, shouldAutoBuild } from "@/lib/share/recipient"
 import { getChartYearSpan } from "@/lib/server/chart"
 import { getAffiliateToken, getProviderAvailability } from "@/lib/server/env"
 import { graduationYearLimits, isValidGraduationYear } from "@/lib/playlist/window"
@@ -22,14 +24,17 @@ export default async function HomePage({
     requested.year != null && isValidGraduationYear(requested.year, limits) ? requested.year : null
 
   return (
-    <TimeMachine
-      providers={providers}
-      libraryError={span.error}
-      chartMinYear={span.minYear}
-      chartMaxYear={span.maxYear}
-      affiliateToken={getAffiliateToken()}
-      initialYear={initialYear}
-      autoBuild={initialYear != null && requested.fromSharePage && !span.error}
-    />
+    <>
+      <JsonLd data={homeJsonLd()} />
+      <TimeMachine
+        providers={providers}
+        libraryError={span.error}
+        chartMinYear={span.minYear}
+        chartMaxYear={span.maxYear}
+        affiliateToken={getAffiliateToken()}
+        initialYear={initialYear}
+        autoBuild={initialYear != null && shouldAutoBuild(query.ref, initialYear) && !span.error}
+      />
+    </>
   )
 }

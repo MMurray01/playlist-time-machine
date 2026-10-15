@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { trackEvent } from "@/lib/analytics"
 import { SHARE_PAGE_REF, recipientPrompt, recipientQuestion } from "@/lib/share/recipient"
 import { graduationWindow, graduationYearMessage, isValidGraduationYear } from "@/lib/playlist/window"
 
@@ -144,7 +145,12 @@ export function MakeYours({
               {libraryError}
             </p>
           ) : null}
-          <button type="submit" className="btn btn-accent btn-block" disabled={blocked}>
+          <button
+            type="submit"
+            className="btn btn-accent btn-block"
+            disabled={blocked}
+            onClick={() => trackEvent("make_your_own_click", { location: "banner" })}
+          >
             Make my playlist
           </button>
         </form>
@@ -161,7 +167,12 @@ export function MakeYours({
           </label>
           <YearFields id="make-year-end" year={year} setYear={setYear} limits={limits} />
           <input type="hidden" name="ref" value={SHARE_PAGE_REF} />
-          <button type="submit" className="btn btn-accent btn-block" disabled={blocked}>
+          <button
+            type="submit"
+            className="btn btn-accent btn-block"
+            disabled={blocked}
+            onClick={() => trackEvent("make_your_own_click", { location: "closing" })}
+          >
             Make my playlist
           </button>
         </form>
@@ -172,7 +183,13 @@ export function MakeYours({
           <span className="make-sticky-kicker">Make your own</span>
           <span className="make-sticky-year">{yearNumber != null ? `Class of ${yearNumber}` : "Pick a year"}</span>
         </p>
-        <button type="submit" form="make-yours-form" className="btn btn-accent" disabled={blocked}>
+        <button
+          type="submit"
+          form="make-yours-form"
+          className="btn btn-accent"
+          disabled={blocked}
+          onClick={() => trackEvent("make_your_own_click", { location: "sticky" })}
+        >
           Make your own
         </button>
       </div>

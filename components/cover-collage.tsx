@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { trackEvent } from "@/lib/analytics"
 import { mapPool } from "@/lib/providers/batch"
 import {
   collageArtworkUrl,
@@ -312,6 +313,7 @@ export function CoverCollage({
     document.body.appendChild(link)
     link.click()
     link.remove()
+    trackEvent("collage_download")
     window.setTimeout(() => URL.revokeObjectURL(url), 1500)
   }
 

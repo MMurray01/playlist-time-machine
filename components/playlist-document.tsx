@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import { useEffect, useRef, useState } from "react"
 import { sharePlaylistAction } from "@/actions/playlist-actions"
+import { trackEvent } from "@/lib/analytics"
 import { ShareLaunch } from "@/components/share-sheet"
 import { loadMusicKit } from "@/components/musickit"
 import { AppleMusicBadge } from "@/components/apple-badge"
@@ -543,6 +544,7 @@ export function PlaylistDocument({
             ? ` ${missed.length} ${missed.length === 1 ? "song was" : "songs were"} not in Apple Music.`
             : ""
         setStatus(`Saved ${saved} of ${playlist.hits.length} songs to Apple Music.${missingNote}`)
+        trackEvent("save_to_apple_music")
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : ""
@@ -645,7 +647,10 @@ export function PlaylistDocument({
     }
     audio.src = preview
     void audio.play().then(
-      () => setPlayingKey(key),
+      () => {
+        setPlayingKey(key)
+        trackEvent("preview_play")
+      },
       () => setPlayingKey(null),
     )
   }
@@ -664,7 +669,10 @@ export function PlaylistDocument({
       if (!preview || !audio) continue
       audio.src = preview
       void audio.play().then(
-        () => setPlayingKey(hitKey(hit)),
+        () => {
+          setPlayingKey(hitKey(hit))
+          trackEvent("preview_play")
+        },
         () => setPlayingKey(null),
       )
       return

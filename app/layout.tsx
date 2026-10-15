@@ -1,11 +1,16 @@
 import type { Metadata } from "next"
 import type { CSSProperties } from "react"
+import { GoogleAnalytics } from "@next/third-parties/google"
 import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Inter } from "next/font/google"
 import { SiteFooter } from "@/components/site-footer"
 import { tokens } from "@/lib/playlist/tokens"
 import { HOME_DESCRIPTION, SITE_URL, siteMetadata } from "@/lib/site/metadata"
 import "./globals.css"
+
+const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim()
+const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim()
 
 const sans = Inter({
   subsets: ["latin"],
@@ -35,6 +40,7 @@ export const metadata: Metadata = {
     description: HOME_DESCRIPTION,
     path: "/",
   }),
+  ...(googleVerification ? { verification: { google: googleVerification } } : {}),
 }
 
 export default function RootLayout({
@@ -48,6 +54,8 @@ export default function RootLayout({
         <div className="site-main">{children}</div>
         <SiteFooter />
         <Analytics />
+        <SpeedInsights />
+        {measurementId ? <GoogleAnalytics gaId={measurementId} /> : null}
       </body>
     </html>
   )
