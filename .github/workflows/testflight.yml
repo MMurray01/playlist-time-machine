@@ -79,9 +79,10 @@ jobs:
         working-directory: ios
         run: |
           echo "Build number: ${{ github.run_number }}"
-          # Ad-hoc signature only. Automatic signing here asks for a development
-          # profile, and this team has no registered devices. The export step
-          # applies the App Store signature.
+          # Leave the archive unsigned. Automatic signing here asks for a
+          # development profile, and this team has no registered devices.
+          # iOS 18.5 also rejects an ad-hoc identity. The export step signs
+          # for App Store Connect.
           xcodebuild \
             -project PlaylistTimeMachine.xcodeproj \
             -scheme PlaylistTimeMachine \
@@ -89,11 +90,9 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            CODE_SIGN_STYLE=Manual \
-            "CODE_SIGN_IDENTITY=-" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
-            DEVELOPMENT_TEAM=WS2R3SYV4W \
+            CODE_SIGN_IDENTITY="" \
             archive
 
       - name: Export and upload to App Store Connect
