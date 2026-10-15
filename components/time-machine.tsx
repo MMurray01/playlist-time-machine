@@ -20,22 +20,27 @@ export function TimeMachine({
   chartMinYear,
   chartMaxYear,
   affiliateToken = null,
+  initialYear = null,
+  autoBuild = false,
 }: {
   providers: ProviderAvailability
   libraryError: string | null
   chartMinYear: number | null
   chartMaxYear: number | null
   affiliateToken?: string | null
+  initialYear?: number | null
+  autoBuild?: boolean
 }) {
   const limits = useMemo(
     () => graduationYearLimits({ chartMinYear, chartMaxYear }),
     [chartMinYear, chartMaxYear],
   )
-  const [year, setYear] = useState("")
+  const [year, setYear] = useState(initialYear != null ? String(initialYear) : "")
   const [playlist, setPlaylist] = useState<BuiltPlaylist | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(libraryError ?? "")
   const pendingScroll = useRef(false)
+  const autoStarted = useRef(false)
 
   const typedYear = /^\d{4}$/.test(year) ? Number(year) : null
   const yearNumber = typedYear != null && isValidGraduationYear(typedYear, limits) ? typedYear : null
@@ -46,7 +51,35 @@ export function TimeMachine({
         ? graduationYearMessage(typedYear, limits, currentCalendarYear())
         : `Enter the year you graduated high school, from ${limits.min} through ${limits.max}.`
 
+  async function runBuild(nextYear: number) {
+    setLoading(true)
+    setError("")
+    try {
+      const result = await generatePlaylistAction(nextYear)
+      if (!result.ok) {
+        setPlaylist(null)
+        setError(result.error)
+        return
+      }
+      pendingScroll.current = true
+      setPlaylist(result.playlist)
+      sessionStorage.setItem("ptm-draft", JSON.stringify({ playlist: result.playlist, year: String(nextYear) }))
+    } catch {
+      setError("The playlist could not be built. Try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
+    if (initialYear != null && isValidGraduationYear(initialYear, limits)) {
+      setYear(String(initialYear))
+      if (autoBuild && !autoStarted.current) {
+        autoStarted.current = true
+        void runBuild(initialYear)
+      }
+      return
+    }
     const raw = sessionStorage.getItem("ptm-draft")
     if (!raw) return
     try {
@@ -58,7 +91,9 @@ export function TimeMachine({
     } catch {
       sessionStorage.removeItem("ptm-draft")
     }
-  }, [limits])
+    // runBuild is recreated each render and only the first auto start should fire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoBuild, initialYear, limits])
 
   function step(delta: number) {
     const base = yearNumber ?? Math.min(limits.max, Math.max(limits.min, 1984))
@@ -84,23 +119,7 @@ export function TimeMachine({
       setError(`Enter the year you graduated high school, from ${limits.min} through ${limits.max}.`)
       return
     }
-    setLoading(true)
-    setError("")
-    try {
-      const result = await generatePlaylistAction(yearNumber)
-      if (!result.ok) {
-        setPlaylist(null)
-        setError(result.error)
-        return
-      }
-      pendingScroll.current = true
-      setPlaylist(result.playlist)
-      sessionStorage.setItem("ptm-draft", JSON.stringify({ playlist: result.playlist, year: String(yearNumber) }))
-    } catch {
-      setError("The playlist could not be built. Try again.")
-    } finally {
-      setLoading(false)
-    }
+    await runBuild(yearNumber)
   }
 
   return (

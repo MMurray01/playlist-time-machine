@@ -1525,3 +1525,104 @@ body {
 .collage-dialog-actions .btn {
   width: 100%;
 }
+
+.make-hero,
+.make-card {
+  border: 1px solid var(--ptm-line);
+  border-radius: 16px;
+  background: var(--ptm-surface);
+}
+
+.make-hero {
+  margin-top: 1.35rem;
+  padding: 1.2rem 1.15rem 1.3rem;
+}
+
+.make-hero h1,
+.make-card h2 {
+  margin-top: 0.4rem;
+  font-size: clamp(1.65rem, 4.2vw, 2.2rem);
+  font-weight: 600;
+  letter-spacing: -0.034em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.make-hero .field-label,
+.make-card .field-label {
+  margin-top: 1.15rem;
+}
+
+.make-hero .year-input,
+.make-card .year-input {
+  font-size: clamp(2.7rem, 10vw, 3.75rem);
+}
+
+.make-hero + .results {
+  margin-top: 2.4rem;
+}
+
+.make-card {
+  margin-top: 2.5rem;
+  padding: 1.2rem 1.15rem 1.3rem;
+}
+
+.make-card .lede {
+  margin-top: 0.55rem;
+  font-size: 1rem;
+}
+
+.make-sticky {
+  position: fixed;
+  z-index: 25;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ptm-line);
+  background: var(--ptm-surface);
+  box-shadow: 0 -10px 28px rgba(17, 17, 19, 0.08);
+}
+
+.make-sticky:not([hidden]) {
+  display: flex;
+}
+
+.make-sticky p {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.make-sticky-kicker {
+  color: var(--ptm-ink-soft);
+  font-size: 0.75rem;
+  font-weight: 550;
+}
+
+.make-sticky-year {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.make-sticky .btn {
+  min-height: 2.75rem;
+  flex: none;
+}
+
+@media (min-width: 721px) {
+  .make-sticky {
+    display: none !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .share-received {
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
+  }
+}
