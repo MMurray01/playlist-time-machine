@@ -10,8 +10,6 @@ final class PlaybackController: ObservableObject {
     @Published var currentArtist = ""
     @Published var isPlaying = false
     @Published var status = ""
-    @Published var canPlayCatalog = false
-    @Published var canOfferSubscription = false
     @Published var showOffer = false
     @Published var offerSongID: String?
     @Published var offerMessage: MusicSubscriptionOffer.MessageIdentifier = .playMusic
@@ -34,22 +32,6 @@ final class PlaybackController: ObservableObject {
         self.songs = songs
     }
 
-    func refreshSubscription() async {
-        guard MusicAuthorization.currentStatus == .authorized else {
-            canPlayCatalog = false
-            canOfferSubscription = false
-            return
-        }
-        do {
-            let subscription = try await MusicSubscription.current
-            canPlayCatalog = subscription.canPlayCatalogContent
-            canOfferSubscription = subscription.canBecomeSubscriber
-        } catch {
-            canPlayCatalog = false
-            canOfferSubscription = false
-        }
-    }
-
     func toggle(_ hit: ApiHit) async {
         if currentKey == hit.key && isPlaying {
             pause()
@@ -58,6 +40,7 @@ final class PlaybackController: ObservableObject {
         await play(hit)
     }
 
+    /// In-app playback is the iTunes preview only. The full song opens in the Music app.
     func play(_ hit: ApiHit) async {
         stopPreview()
         player.pause()
@@ -65,10 +48,6 @@ final class PlaybackController: ObservableObject {
         currentTitle = hit.title
         currentArtist = hit.artist
         status = ""
-        if canPlayCatalog, hit.catalog?.catalogId != nil {
-            await playFull(hit)
-            return
-        }
         if let url = hit.previewURL {
             startPreview(url)
             return
@@ -77,55 +56,34 @@ final class PlaybackController: ObservableObject {
         isPlaying = false
     }
 
-    func requestFullPlayback(_ hit: ApiHit) async {
-        let authorization = await MusicAuthorization.request()
-        guard authorization == .authorized else {
-            status = "Apple Music access is required to play the full song."
-            return
-        }
-        await refreshSubscription()
-        if canPlayCatalog {
-            await play(hit)
-            return
-        }
-        if canOfferSubscription {
-            offerSongID = hit.catalog?.catalogId
-            offerMessage = .playMusic
-            showOffer = true
-            return
-        }
-        if let url = hit.previewURL {
-            currentKey = hit.key
-            currentTitle = hit.title
-            currentArtist = hit.artist
-            startPreview(url)
-        } else {
-            status = "This song has no preview."
-        }
-    }
-
     func pause() {
         previewPlayer?.pause()
         player.pause()
         isPlaying = false
     }
 
+    /// Stops the preview and hides the mini player. Closing the song sheet calls this.
+    func stop() {
+        stopPreview()
+        player.pause()
+        isPlaying = false
+        currentKey = nil
+        currentTitle = ""
+        currentArtist = ""
+        status = ""
+    }
+
     func resume() async {
-        if let preview = previewPlayer {
-            let duration = preview.currentItem?.duration ?? .zero
-            if duration.isNumeric, CMTimeCompare(preview.currentTime(), duration) >= 0 {
-                await preview.seek(to: .zero)
-            }
-            preview.play()
-            isPlaying = true
+        guard let preview = previewPlayer else {
+            isPlaying = false
             return
         }
-        do {
-            try await player.play()
-            isPlaying = true
-        } catch {
-            status = "The full song could not be played."
+        let duration = preview.currentItem?.duration ?? .zero
+        if duration.isNumeric, CMTimeCompare(preview.currentTime(), duration) >= 0 {
+            await preview.seek(to: .zero)
         }
+        preview.play()
+        isPlaying = true
     }
 
     func skip(_ delta: Int) async {
@@ -133,28 +91,6 @@ final class PlaybackController: ObservableObject {
         let next = index + delta
         guard songs.indices.contains(next) else { return }
         await play(songs[next])
-    }
-
-    private func playFull(_ hit: ApiHit) async {
-        guard let id = hit.catalog?.catalogId, let song = await CatalogMatch.song(id: id) else {
-            if let url = hit.previewURL {
-                startPreview(url)
-            } else {
-                status = "This song has no preview."
-                isPlaying = false
-            }
-            return
-        }
-        do {
-            try activateSession()
-            player.queue = ApplicationMusicPlayer.Queue(for: [song])
-            try await player.play()
-            isPlaying = true
-            status = "Playing in Apple Music."
-        } catch {
-            isPlaying = false
-            status = "The full song could not be played."
-        }
     }
 
     private func startPreview(_ url: URL) {

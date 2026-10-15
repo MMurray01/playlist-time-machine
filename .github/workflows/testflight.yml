@@ -1,6 +1,6 @@
 name: TestFlight
 
-# Uploads an App Store archive for cursor/ios-app-v1-d049.
+# Uploads an App Store archive for the current iOS branch.
 # Repository secrets, all required:
 #   ASC_ISSUER_ID    App Store Connect API issuer ID
 #   ASC_KEY_ID       App Store Connect API key ID
@@ -10,7 +10,7 @@ name: TestFlight
 on:
   push:
     branches:
-      - cursor/ios-app-v1-d049
+      - cursor/ios-build-15-feedback-d049
     paths:
       - "ios/**"
       - ".github/scripts/asc_upload.py"
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: testflight-cursor-ios-app-v1-d049
+  group: testflight-cursor-ios-build-15-feedback-d049
   cancel-in-progress: true
 
 jobs:

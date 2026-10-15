@@ -92,7 +92,9 @@ struct YearPickerView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .background(Theme.paper.ignoresSafeArea())
+        .background {
+            CoverWall()
+        }
         .task { await model.loadLimits() }
     }
 

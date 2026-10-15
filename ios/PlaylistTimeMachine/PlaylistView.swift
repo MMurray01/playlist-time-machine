@@ -19,7 +19,6 @@ struct PlaylistView: View {
                             .font(.subheadline)
                             .foregroundColor(Theme.inkSoft)
                     }
-                    genreBar(document)
                     viewToggle
                     Text(document.courtesy.isEmpty ? Copy.previewCourtesy : document.courtesy)
                         .font(.footnote)
@@ -44,7 +43,10 @@ struct PlaylistView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("Year") { model.backToYear() }
+                Button("Year") {
+                    playback.stop()
+                    model.backToYear()
+                }
             }
         }
         .onAppear {
@@ -53,18 +55,24 @@ struct PlaylistView: View {
         .onChange(of: model.document?.playlist.hits.map(\.key) ?? []) { _ in
             playback.replace(songs: model.document?.playlist.hits ?? [])
         }
-        .task { await playback.refreshSubscription() }
     }
 
     @ViewBuilder
     private func artwork(_ document: PlaylistDocument) -> some View {
+        let shownTitle = model.titleDraft.isEmpty ? document.playlist.title : model.titleDraft
         VStack(alignment: .leading, spacing: 8) {
             if let image = model.artworkImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .accessibilityLabel("Playlist artwork for \(document.playlist.title)")
+                Button {
+                    model.showCollage = true
+                } label: {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Playlist artwork for \(shownTitle)")
+                .accessibilityHint("Opens the artwork full screen")
             } else {
                 ZStack {
                     Theme.cover
@@ -78,18 +86,12 @@ struct PlaylistView: View {
                 .frame(height: 220)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            Text("Playlist artwork for \(model.titleDraft.isEmpty ? document.playlist.title : model.titleDraft)")
+            Text("Playlist artwork for \(shownTitle)")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(Theme.ink)
-            if let url = model.shareLink?.url, let link = URL(string: url) {
-                Link(url, destination: link)
-                    .font(.footnote)
-                    .foregroundColor(Theme.accent)
-            } else {
-                Text("The playlist link will appear here when it can be saved.")
-                    .font(.footnote)
-                    .foregroundColor(Theme.inkSoft)
-            }
+        }
+        .fullScreenCover(isPresented: $model.showCollage) {
+            CollageViewer()
         }
     }
 
@@ -97,15 +99,23 @@ struct PlaylistView: View {
     private func actions(_ document: PlaylistDocument) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if document.recipient == nil {
-                Text("Playlist name")
+                Text("Name your Playlist")
                     .font(.subheadline.weight(.semibold))
-                TextField("Playlist name", text: $model.titleDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .submitLabel(.done)
-                    .onSubmit { model.commitTitle() }
-                    .onChange(of: model.titleDraft) { value in
-                        if value.count > 80 { model.titleDraft = String(value.prefix(80)) }
+                TextField(
+                    "",
+                    text: $model.titleDraft,
+                    prompt: Text(document.playlist.title).foregroundColor(Theme.placeholder)
+                )
+                .textFieldStyle(.roundedBorder)
+                .submitLabel(.done)
+                .onSubmit { model.commitTitle() }
+                .onChange(of: model.titleDraft) { value in
+                    if value.count > 80 {
+                        model.titleDraft = String(value.prefix(80))
+                        return
                     }
+                    model.refreshArtwork()
+                }
             }
             Button("Save to Apple Music") {
                 Task { await model.save(playback: playback) }
@@ -115,7 +125,7 @@ struct PlaylistView: View {
             Button("Share") {
                 Task { await model.share() }
             }
-            .buttonStyle(SecondaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle(enabled: !model.isWorking && !document.playlist.hits.isEmpty))
             .disabled(model.isWorking || document.playlist.hits.isEmpty)
             Text("The link includes every number one hit from \(document.playlist.startYear) through \(document.playlist.endYear).")
                 .font(.footnote)
@@ -149,43 +159,26 @@ struct PlaylistView: View {
         }
     }
 
-    private func genreBar(_ document: PlaylistDocument) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Genres")
-                .font(.subheadline.weight(.semibold))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    genreChip("All", selected: model.selectedGenres.isEmpty) {
-                        Task { await model.clearGenres() }
-                    }
-                    ForEach(document.availableGenres, id: \.self) { genre in
-                        genreChip(genre, selected: model.selectedGenres.contains(where: { $0.caseInsensitiveCompare(genre) == .orderedSame })) {
-                            Task { await model.toggleGenre(genre) }
-                        }
-                    }
-                }
-            }
+    private var viewToggle: some View {
+        HStack(spacing: 8) {
+            browseButton("Cover Flow", selected: model.browse == .flow) { model.chooseBrowse(.flow) }
+            browseButton("List View", selected: model.browse == .list) { model.chooseBrowse(.list) }
         }
+        .frame(maxWidth: 360)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("How to browse songs")
     }
 
-    private func genreChip(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    private func browseButton(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
             .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .foregroundColor(selected ? Theme.onAccent : Theme.ink)
             .background(selected ? Theme.accent : Theme.surface)
             .clipShape(Capsule())
             .overlay(Capsule().stroke(Theme.line, lineWidth: selected ? 0 : 1))
-    }
-
-    private var viewToggle: some View {
-        HStack(spacing: 8) {
-            genreChip("Cover Flow", selected: model.browse == .flow) { model.chooseBrowse(.flow) }
-            genreChip("List", selected: model.browse == .list) { model.chooseBrowse(.list) }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("How to browse songs")
     }
 
     private func recipientCard(_ recipient: RecipientCopy, year: Int) -> some View {
@@ -238,12 +231,12 @@ private struct YearSection: View {
                 .font(.title2.weight(.bold))
                 .foregroundColor(Theme.ink)
             Text(chapter.story.summary)
-                .font(.body)
+                .font(.body.italic())
                 .foregroundColor(Theme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
             if let editorial = chapter.story.editorial, !editorial.isEmpty {
                 Text(editorial)
-                    .font(.body)
+                    .font(.body.italic())
                     .foregroundColor(Theme.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }

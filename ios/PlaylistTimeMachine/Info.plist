@@ -39,6 +39,8 @@
 	<true/>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Playlist Time Machine uses Apple Music to play songs you choose, check whether you subscribe, and save this playlist to your library. This includes your Apple Music subscription status and the playlist it creates for you.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Playlist Time Machine adds the playlist artwork to your photo library when you tap Save to Photos.</string>
 	<key>PTMAPIBaseURL</key>
 	<string>https://www.playlisttimemachine.com</string>
 	<key>UIApplicationSceneManifest</key>

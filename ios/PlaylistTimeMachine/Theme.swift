@@ -5,6 +5,7 @@ enum Theme {
     static let surface = Color.white
     static let ink = Color(red: 17 / 255, green: 17 / 255, blue: 19 / 255)
     static let inkSoft = Color(red: 63 / 255, green: 63 / 255, blue: 70 / 255)
+    static let placeholder = Color(red: 161 / 255, green: 161 / 255, blue: 170 / 255)
     static let line = Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255)
     static let accent = Color(red: 29 / 255, green: 78 / 255, blue: 216 / 255)
     static let onAccent = Color.white

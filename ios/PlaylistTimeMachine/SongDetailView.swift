@@ -22,12 +22,7 @@ struct SongDetailView: View {
                         .foregroundColor(Theme.inkSoft)
                 }
 
-                if playback.canPlayCatalog, hit.catalog?.catalogId != nil {
-                    Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : "Play") {
-                        Task { await playback.toggle(hit) }
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                } else if hit.previewURL != nil {
+                if hit.previewURL != nil {
                     Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause preview" : "Play 30-second preview") {
                         Task { await playback.toggle(hit) }
                     }
@@ -48,13 +43,6 @@ struct SongDetailView: View {
                     .accessibilityLabel("Listen on Apple Music")
                 }
 
-                if !playback.canPlayCatalog, hit.catalog?.catalogId != nil {
-                    Button("Play the full song") {
-                        Task { await playback.requestFullPlayback(hit) }
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
-
                 if !playback.status.isEmpty {
                     Text(playback.status)
                         .font(.subheadline)
@@ -65,8 +53,11 @@ struct SongDetailView: View {
                     .font(.footnote)
                     .foregroundColor(Theme.inkSoft)
 
-                Button("Close") { dismiss() }
-                    .buttonStyle(SecondaryButtonStyle())
+                Button("Close") {
+                    playback.stop()
+                    dismiss()
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
             .padding(24)
             .frame(maxWidth: 640, alignment: .leading)
@@ -74,6 +65,7 @@ struct SongDetailView: View {
         }
         .background(Theme.paper.ignoresSafeArea())
         .presentationDetents([.large])
+        .onDisappear { playback.stop() }
     }
 
     @ViewBuilder

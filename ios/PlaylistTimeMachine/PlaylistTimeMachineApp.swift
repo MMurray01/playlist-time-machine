@@ -22,6 +22,7 @@ struct PlaylistTimeMachineApp: App {
 
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var playback: PlaybackController
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,7 @@ struct RootView: View {
         }
         .sheet(item: $model.selectedHit) { hit in
             SongDetailView(hit: hit)
+                .onDisappear { playback.stop() }
         }
         .background {
             if let draft = model.shareDraft {

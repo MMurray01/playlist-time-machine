@@ -11,12 +11,12 @@ final class AppModel: ObservableObject {
 
     @Published var document: PlaylistDocument?
     @Published var titleDraft = ""
-    @Published var selectedGenres: [String] = []
     @Published var browse: BrowseMode = .flow
     @Published var status = ""
     @Published var playlistError: String?
     @Published var isWorking = false
     @Published var artworkImage: UIImage?
+    @Published var showCollage = false
     @Published var shareLink: ShareLink?
     @Published var libraryDescription = ""
     @Published var savedNote = ""
@@ -27,7 +27,6 @@ final class AppModel: ObservableObject {
     private var generation = 0
     private var shareTitle = ""
     private var artworkTask: Task<Void, Never>?
-    /// Unfiltered songs. Genre chips only change the list on screen.
     private var playlistHits: [ApiHit] = []
 
     var typedYear: Int? { YearWindow.typedYear(yearText) }
@@ -91,29 +90,12 @@ final class AppModel: ObservableObject {
             return
         }
         homeError = nil
-        await loadYear(year, genres: [])
+        await loadYear(year)
     }
 
     func open(url: URL) {
         guard let id = DeepLink.shareID(from: url) else { return }
         Task { await loadShare(id: id) }
-    }
-
-    func toggleGenre(_ genre: String) async {
-        guard document != nil else { return }
-        if selectedGenres.contains(where: { $0.caseInsensitiveCompare(genre) == .orderedSame }) {
-            selectedGenres.removeAll { $0.caseInsensitiveCompare(genre) == .orderedSame }
-        } else {
-            selectedGenres.append(genre)
-        }
-        guard let year = document?.playlist.graduationYear else { return }
-        await loadYear(year, genres: selectedGenres, keepShare: true)
-    }
-
-    func clearGenres() async {
-        guard !selectedGenres.isEmpty, let year = document?.playlist.graduationYear else { return }
-        selectedGenres = []
-        await loadYear(year, genres: [], keepShare: true)
     }
 
     func chooseBrowse(_ mode: BrowseMode) {
@@ -122,10 +104,28 @@ final class AppModel: ObservableObject {
     }
 
     func commitTitle() {
-        guard let year = document?.playlist.graduationYear else { return }
-        titleDraft = YearWindow.cleanTitle(titleDraft, graduationYear: year)
+        titleDraft = String(titleDraft.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
         renderArtwork()
-        Task { await ensureShare() }
+    }
+
+    func refreshArtwork() {
+        renderArtwork()
+    }
+
+    /// Empty names keep the field blank and fall back to "Class of YEAR".
+    func playlistName() -> String {
+        YearWindow.cleanTitle(titleDraft, graduationYear: document?.playlist.graduationYear ?? 0)
+    }
+
+    func renderPrintArtwork() async -> UIImage? {
+        guard let artwork = document?.artwork, let playlist = document?.playlist else { return nil }
+        let link = await ensureShare()
+        let headline = PlaylistImages.headline(
+            title: playlistName(),
+            start: playlist.startYear,
+            end: playlist.endYear
+        )
+        return await PlaylistImages.renderPrintArtwork(artwork, headline: headline, link: link?.url)
     }
 
     func share() async {
@@ -136,7 +136,7 @@ final class AppModel: ObservableObject {
         defer { isWorking = false }
         guard let link = await ensureShare() else { return }
         let image = await PlaylistImages.renderStory(
-            title: document.playlist.title,
+            title: playlistName(),
             link: link.url,
             hits: playlistHits.isEmpty ? document.playlist.hits : playlistHits
         )
@@ -161,7 +161,7 @@ final class AppModel: ObservableObject {
         status = "Saving to Apple Music."
         let outcome = await LibrarySaver.save(
             hits: playlistHits.isEmpty ? document.playlist.hits : playlistHits,
-            name: document.library.name,
+            name: playlistName(),
             description: libraryDescription.isEmpty ? document.library.description : libraryDescription
         )
         switch outcome {
@@ -170,7 +170,6 @@ final class AppModel: ObservableObject {
             let missingNote = missing.isEmpty ? "" : " \(missing.count) \(missing.count == 1 ? "song was" : "songs were") not in Apple Music."
             savedNote = "Saved \(count) of \(requested) songs to Apple Music.\(missingNote)"
             status = savedNote
-            await playback.refreshSubscription()
         case .needsOffer(let songID):
             playback.offerSongID = songID
             playback.offerMessage = .addMusic
@@ -190,6 +189,7 @@ final class AppModel: ObservableObject {
         document = nil
         playlistHits = []
         artworkImage = nil
+        showCollage = false
         shareLink = nil
         playlistError = nil
         status = ""
@@ -207,7 +207,7 @@ final class AppModel: ObservableObject {
         do {
             let loaded = try await PlaylistAPI.sharedPlaylist(id: id)
             guard ticket == generation else { return }
-            apply(loaded, keepShare: false)
+            apply(loaded)
         } catch {
             guard ticket == generation else { return }
             document = nil
@@ -215,7 +215,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func loadYear(_ year: Int, genres: [String], keepShare: Bool = false) async {
+    private func loadYear(_ year: Int) async {
         generation += 1
         let ticket = generation
         if document == nil { isBuilding = true } else { isWorking = true }
@@ -228,14 +228,12 @@ final class AppModel: ObservableObject {
             }
         }
         do {
-            let loaded = try await PlaylistAPI.playlist(year: year, genres: genres)
+            let loaded = try await PlaylistAPI.playlist(year: year, genres: [])
             guard ticket == generation else { return }
             UserDefaults.standard.set(String(year), forKey: "ptm-graduation-year")
             yearText = String(year)
-            apply(loaded, keepShare: keepShare)
-            if !keepShare {
-                Task { await self.ensureShare() }
-            }
+            apply(loaded)
+            Task { await self.ensureShare() }
         } catch {
             guard ticket == generation else { return }
             if document == nil {
@@ -246,38 +244,24 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func apply(_ loaded: PlaylistDocument, keepShare: Bool) {
-        let previousLink = shareLink
-        let previousDescription = libraryDescription
+    private func apply(_ loaded: PlaylistDocument) {
         document = loaded
         if loaded.recipient != nil {
             yearText = String(loaded.playlist.graduationYear)
         }
-        if !keepShare || titleDraft.isEmpty {
-            titleDraft = loaded.playlist.title
-        }
-        selectedGenres = loaded.playlist.genres
+        titleDraft = ""
         limits = loaded.limits
         if let share = loaded.share {
             shareLink = share
             shareTitle = loaded.playlist.title
             libraryDescription = loaded.library.description
-        } else if keepShare {
-            shareLink = previousLink
-            libraryDescription = previousDescription
         } else {
             shareLink = nil
             shareTitle = ""
             libraryDescription = loaded.library.description
         }
-        if loaded.playlist.genres.isEmpty {
-            playlistHits = loaded.playlist.hits
-        }
-        if let message = loaded.filterMessage {
-            status = message
-        } else if loaded.playlist.genres.isEmpty {
-            status = ""
-        }
+        playlistHits = loaded.playlist.hits
+        status = loaded.filterMessage ?? ""
         renderArtwork()
     }
 
