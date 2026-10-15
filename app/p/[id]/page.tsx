@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import { MakeYours } from "@/components/make-yours"
 import { PlaylistDocument } from "@/components/playlist-document"
@@ -8,14 +7,7 @@ import { graduationYearLimits } from "@/lib/playlist/window"
 import { getChartYearSpan } from "@/lib/server/chart"
 import { getAffiliateToken, getProviderAvailability } from "@/lib/server/env"
 import { getSharedPlaylistPage } from "@/lib/server/share"
-
-async function requestOrigin(): Promise<string> {
-  const headerList = await headers()
-  const host = headerList.get("x-forwarded-host") ?? headerList.get("host")
-  if (!host) return ""
-  const proto = headerList.get("x-forwarded-proto") ?? "https"
-  return `${proto}://${host}`
-}
+import { pageUrl } from "@/lib/site/metadata"
 
 export async function generateMetadata({
   params,
@@ -28,29 +20,31 @@ export async function generateMetadata({
   const query = await searchParams
   const page = await getSharedPlaylistPage(id)
   if (!page.ok) {
-    return { title: "Playlist not found · Playlist Time Machine" }
+    return {
+      title: "Playlist not found · Playlist Time Machine",
+      robots: { index: false, follow: false },
+    }
   }
-  const origin = await requestOrigin()
-  const canonical = origin ? `${origin}/p/${id}` : `/p/${id}`
+  const canonical = pageUrl(`/p/${id}`)
   const collage = query.collage === "1"
-  const invite = origin ? `${canonical}?collage=1` : `/p/${id}?collage=1`
   const title = collage
     ? `Make a cover collage · ${page.playlist.title}`
     : `${page.playlist.title} · Playlist Time Machine`
   const description = collage
     ? `A free collage of album covers from ${page.playlist.title}, ${page.playlist.startYear} through ${page.playlist.endYear}. Make your own with Playlist Time Machine.`
     : `Number one hits from ${page.playlist.startYear} through ${page.playlist.endYear}, the popular songs of the time. ${page.playlist.hits.length} songs, in the order they reached the top.`
-  const imageUrl = origin ? `${origin}/p/${id}/opengraph-image` : `/p/${id}/opengraph-image`
+  const imageUrl = `${canonical}/opengraph-image`
   const imageAlt = `${page.playlist.title}. Number one hits from ${page.playlist.startYear} through ${page.playlist.endYear}.`
   return {
     title,
     description,
+    robots: { index: false, follow: true },
     alternates: { canonical },
     openGraph: {
       title,
       description,
       type: "website",
-      url: collage ? invite : canonical,
+      url: canonical,
       images: [{ url: imageUrl, width: 1200, height: 630, alt: imageAlt }],
     },
     twitter: {

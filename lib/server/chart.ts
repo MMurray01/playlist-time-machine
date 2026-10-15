@@ -92,3 +92,62 @@ export async function loadBuiltPlaylist(input: {
     }),
   }
 }
+
+/** Chart years that have at least one number one. Cached for the life of the server process. */
+let chartYearsPromise: Promise<number[]> | null = null
+
+export function listChartYears(): Promise<number[]> {
+  chartYearsPromise ??= readChartYears()
+  return chartYearsPromise
+}
+
+async function readChartYears(): Promise<number[]> {
+  const client = createReadClient()
+  if (!client) return []
+  const years = new Set<number>()
+  try {
+    for (let from = 0; from < 8000; from += 1000) {
+      const { data, error } = await client
+        .from("number_one_hits")
+        .select("year")
+        .order("year", { ascending: true })
+        .range(from, from + 999)
+      if (error) return []
+      for (const row of data ?? []) {
+        if (typeof row.year === "number" && Number.isInteger(row.year)) years.add(row.year)
+      }
+      if (!data || data.length < 1000) break
+    }
+  } catch {
+    return []
+  }
+  return [...years].sort((a, b) => a - b)
+}
+
+export async function loadChartYear(year: number): Promise<{ ok: true; hits: ChartHit[] } | { ok: false; error: string }> {
+  if (!Number.isInteger(year)) return { ok: false, error: "That year is not in the chart library." }
+  const client = createReadClient()
+  if (!client) return { ok: false, error: "The chart library is not connected yet." }
+  const hits: ChartHit[] = []
+  try {
+    for (let from = 0; from < 5000; from += 1000) {
+      const { data, error } = await client
+        .from("number_one_hits")
+        .select(HIT_COLUMNS)
+        .eq("year", year)
+        .order("chart_date", { ascending: true })
+        .order("week_number", { ascending: true })
+        .order("song_id", { ascending: true })
+        .range(from, from + 999)
+      if (error) return { ok: false, error: "The chart library could not be read. Try again in a moment." }
+      for (const row of data ?? []) {
+        const hit = mapHitRow(row as Record<string, unknown>)
+        if (hit) hits.push(hit)
+      }
+      if (!data || data.length < 1000) break
+    }
+  } catch {
+    return { ok: false, error: "The chart library could not be read. Try again in a moment." }
+  }
+  return { ok: true, hits }
+}

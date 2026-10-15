@@ -5,6 +5,7 @@ import {
   recipientPrompt,
   recipientQuestion,
   recipientYearFromQuery,
+  shouldAutoBuild,
 } from "@/lib/share/recipient"
 
 function expectClean(value: string) {
@@ -30,5 +31,13 @@ describe("received playlist call to action", () => {
     expect(recipientYearFromQuery("1980", "share-page")).toEqual({ year: 1980, fromSharePage: true })
     expect(recipientYearFromQuery("1980", undefined)).toEqual({ year: 1980, fromSharePage: false })
     expect(recipientYearFromQuery("nope", "share-page")).toEqual({ year: null, fromSharePage: false })
+  })
+
+  it("builds on arrival from a class page or a chart page", () => {
+    expect(shouldAutoBuild("share-page", 1985)).toBe(true)
+    expect(shouldAutoBuild("class-of", 1985)).toBe(true)
+    expect(shouldAutoBuild("number-one-hits", 1984)).toBe(true)
+    expect(shouldAutoBuild("newsletter", 1985)).toBe(false)
+    expect(shouldAutoBuild("class-of", null)).toBe(false)
   })
 })

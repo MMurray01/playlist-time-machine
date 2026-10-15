@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useRef, useState } from "react"
+import { trackEvent } from "@/lib/analytics"
 import {
   INSTAGRAM_TIP,
   TIKTOK_TIP,
@@ -135,10 +136,12 @@ export function ShareLaunch({
       const withFile: ShareData = { files: [file], title, text }
       if (navigator.canShare?.(withFile)) {
         await navigator.share(withFile)
+        trackEvent("share", { method: "native" })
         return
       }
     }
     await navigator.share({ title, text: lead, url: tagged })
+    trackEvent("share", { method: "native" })
   }
 
   async function openShare() {
@@ -186,9 +189,10 @@ export function ShareLaunch({
     const text = source === "copy" ? withShareUtm(pageUrl, source) : shareMessage(target, withShareUtm(pageUrl, source), year)
     const ok = await writeClipboard(text, dialogRef.current)
     setNote(ok ? success : "Copy this text from the share sheet.")
+    if (ok) trackEvent("share", { method: source })
   }
 
-  function downloadImage() {
+  function downloadImage(method: "instagram" | "tiktok") {
     if (!imageBlob) return
     const href = imageUrl || URL.createObjectURL(imageBlob)
     const link = document.createElement("a")
@@ -197,6 +201,7 @@ export function ShareLaunch({
     document.body.appendChild(link)
     link.click()
     link.remove()
+    trackEvent("share", { method })
     setNote("Story image downloaded.")
   }
 
@@ -255,30 +260,36 @@ export function ShareLaunch({
               </button>
             </li>
             <li>
-              <a href={channelHref("facebook")} target="_blank" rel="noopener noreferrer">
+              <a href={channelHref("facebook")} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("share", { method: "facebook" })}>
                 Facebook
               </a>
             </li>
             <li>
-              <a href={channelHref("x")} target="_blank" rel="noopener noreferrer">
+              <a href={channelHref("x")} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("share", { method: "x" })}>
                 X
               </a>
             </li>
             <li>
-              <a href={channelHref("whatsapp")} target="_blank" rel="noopener noreferrer">
+              <a href={channelHref("whatsapp")} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("share", { method: "whatsapp" })}>
                 WhatsApp
               </a>
             </li>
             <li>
-              <a href={channelHref("sms")}>Text</a>
+              <a href={channelHref("sms")} onClick={() => trackEvent("share", { method: "sms" })}>
+                Text
+              </a>
             </li>
             {apple ? (
               <li>
-                <a href={channelHref("imessage")}>iMessage</a>
+                <a href={channelHref("imessage")} onClick={() => trackEvent("share", { method: "imessage" })}>
+                  iMessage
+                </a>
               </li>
             ) : null}
             <li>
-              <a href={channelHref("email")}>Email</a>
+              <a href={channelHref("email")} onClick={() => trackEvent("share", { method: "email" })}>
+                Email
+              </a>
             </li>
           </ul>
 
@@ -302,7 +313,7 @@ export function ShareLaunch({
               <h4>Instagram</h4>
               <p className="quiet">{INSTAGRAM_TIP}</p>
               <div className="share-channel-actions">
-                <button type="button" onClick={downloadImage} disabled={!imageBlob}>
+                <button type="button" onClick={() => downloadImage("instagram")} disabled={!imageBlob}>
                   Download image
                 </button>
                 <button type="button" onClick={() => void copy("instagram", "Caption copied.")}>
@@ -314,7 +325,7 @@ export function ShareLaunch({
               <h4>TikTok</h4>
               <p className="quiet">{TIKTOK_TIP}</p>
               <div className="share-channel-actions">
-                <button type="button" onClick={downloadImage} disabled={!imageBlob}>
+                <button type="button" onClick={() => downloadImage("tiktok")} disabled={!imageBlob}>
                   Download image
                 </button>
                 <button type="button" onClick={() => void copy("tiktok", "Caption copied.")}>

@@ -49,3 +49,39 @@ export function siteMetadata({
     },
   }
 }
+
+/** Open Graph card for a page that has its own generated image. */
+export function pageSocialMetadata({
+  title,
+  description,
+  path,
+  imagePath,
+  imageAlt,
+}: {
+  title: string
+  description: string
+  path: string
+  imagePath: string
+  imageAlt: string
+}): Metadata {
+  const url = pageUrl(path)
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: SITE_NAME,
+      type: "website",
+      images: [{ url: imagePath, width: 1200, height: 630, alt: imageAlt }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imagePath],
+    },
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { generatePlaylistAction } from "@/actions/playlist-actions"
+import { trackEvent } from "@/lib/analytics"
 import { FromSpotify } from "@/components/from-spotify"
 import { PlaylistDocument } from "@/components/playlist-document"
 import { ShareLaunch } from "@/components/share-sheet"
@@ -63,6 +64,7 @@ export function TimeMachine({
       }
       pendingScroll.current = true
       setPlaylist(result.playlist)
+      trackEvent("generate_playlist", { year: nextYear })
       sessionStorage.setItem("ptm-draft", JSON.stringify({ playlist: result.playlist, year: String(nextYear) }))
     } catch {
       setError("The playlist could not be built. Try again.")

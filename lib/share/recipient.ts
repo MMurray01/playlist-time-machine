@@ -28,3 +28,10 @@ export function recipientYearFromQuery(year: string | undefined, ref: string | u
     fromSharePage: ref === SHARE_PAGE_REF && whole != null,
   }
 }
+
+const AUTO_BUILD_REFS = new Set([SHARE_PAGE_REF, "class-of", "number-one-hits"])
+
+/** Deep links from a share page, a class page, or a chart page build the playlist on arrival. */
+export function shouldAutoBuild(ref: string | undefined, year: number | null): boolean {
+  return year != null && ref != null && AUTO_BUILD_REFS.has(ref)
+}
