@@ -56,50 +56,67 @@ jobs:
         if: steps.secrets.outputs.present == 'true'
         env:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
-          KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set +x
           umask 077
           python3 - << 'PY'
           import os
           import pathlib
-          raw = os.environ["ASC_PRIVATE_KEY"].replace("\\n", "\n")
-          if not raw.endswith("\n"):
-              raw += "\n"
-          path = pathlib.Path(os.environ["KEY_PATH"])
+          raw = os.environ["ASC_PRIVATE_KEY"].replace("\\n", "\n").strip() + "\n"
+          key_id = "".join(os.environ["ASC_KEY_ID"].split())
+          issuer = "".join(os.environ["ASC_ISSUER_ID"].split())
+          path = pathlib.Path.home() / "private_keys" / f"AuthKey_{key_id}.p8"
+          path.parent.mkdir(mode=0o700, exist_ok=True)
           path.write_text(raw)
           path.chmod(0o600)
           if "PRIVATE KEY" not in raw:
               raise SystemExit("ASC_PRIVATE_KEY does not contain a PEM private key.")
+          with pathlib.Path(os.environ["GITHUB_ENV"]).open("a") as handle:
+              handle.write(f"KEY_PATH={path}\n")
+              handle.write(f"ASC_KEY_ID={key_id}\n")
+              handle.write(f"ASC_ISSUER_ID={issuer}\n")
           PY
-          echo "KEY_PATH=${KEY_PATH}" >> "${GITHUB_ENV}"
 
       - name: Archive for App Store Connect
         if: steps.secrets.outputs.present == 'true'
         working-directory: ios
         run: |
           echo "Build number: ${{ github.run_number }}"
-          # Leave the archive unsigned. Automatic signing here asks for a
-          # development profile, and this team has no registered devices.
-          # iOS 18.5 also rejects an ad-hoc identity. The export step signs
-          # for App Store Connect.
-          xcodebuild \
-            -project PlaylistTimeMachine.xcodeproj \
-            -scheme PlaylistTimeMachine \
-            -configuration Release \
-            -destination "generic/platform=iOS" \
-            -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            archive
+          # Automatic signing needs one registered device before it can create
+          # a development profile. Retry briefly while that registration lands.
+          set +e
+          for attempt in 1 2 3 4 5 6 7 8; do
+            xcodebuild \
+              -project PlaylistTimeMachine.xcodeproj \
+              -scheme PlaylistTimeMachine \
+              -configuration Release \
+              -destination "generic/platform=iOS" \
+              -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "${KEY_PATH}" \
+              -authenticationKeyID "${ASC_KEY_ID}" \
+              -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
+              CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+              DEVELOPMENT_TEAM=WS2R3SYV4W \
+              CODE_SIGN_STYLE=Automatic \
+              archive > "${RUNNER_TEMP}/archive.log" 2>&1
+            status=$?
+            cat "${RUNNER_TEMP}/archive.log"
+            if [ "${status}" -eq 0 ]; then
+              exit 0
+            fi
+            if grep -q "no devices" "${RUNNER_TEMP}/archive.log" && [ "${attempt}" -lt 8 ]; then
+              echo "No registered device yet (attempt ${attempt}). Waiting for the iPhone registration."
+              sleep 45
+              continue
+            fi
+            exit "${status}"
+          done
 
       - name: Export and upload to App Store Connect
         if: steps.secrets.outputs.present == 'true'
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           cat > "${RUNNER_TEMP}/ExportOptions.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -137,4 +154,4 @@ jobs:
 
       - name: Remove the API key file
         if: always() && steps.secrets.outputs.present == 'true'
-        run: rm -f "${RUNNER_TEMP}/AuthKey.p8"
+        run: rm -f "${KEY_PATH}"
