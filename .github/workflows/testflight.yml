@@ -145,7 +145,7 @@ jobs:
 
       - name: Verify the App Store Connect API key
         if: steps.secrets.outputs.present == 'true'
-        run: python3 .github/scripts/asc_upload.py --check
+        run: python3 -u .github/scripts/asc_upload.py --check
 
       - name: Archive for App Store Connect
         if: steps.secrets.outputs.present == 'true'
@@ -231,7 +231,7 @@ jobs:
             exit 1
           fi
           # altool rejects this key's JWT. The build upload API accepts the same key.
-          python3 .github/scripts/asc_upload.py "${ipa}"
+          python3 -u .github/scripts/asc_upload.py "${ipa}"
           {
             echo "### TestFlight"
             echo "Uploaded build ${{ github.run_number }} (version 1.0) to App Store Connect."

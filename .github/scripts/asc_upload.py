@@ -134,7 +134,7 @@ def state_of(attributes):
 def upload(ipa: str, bearer: str) -> None:
     short, build = ipa_versions(ipa)
     size = os.path.getsize(ipa)
-    digest = hashlib.sha256()
+    digest = hashlib.md5()
     with open(ipa, "rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
@@ -193,23 +193,35 @@ def upload(ipa: str, bearer: str) -> None:
                     raise SystemExit(f"Upload chunk {index} asked for {length} bytes at {offset}, read {len(chunk)}.")
                 headers = {item["name"]: item["value"] for item in operation.get("requestHeaders") or []}
                 send_chunk(operation["method"], operation["url"], headers, chunk, index, len(operations))
-        api(
-            "PATCH",
-            f"/v1/buildUploadFiles/{file_id}",
-            bearer,
-            {
-                "data": {
-                    "type": "buildUploadFiles",
-                    "id": file_id,
-                    "attributes": {
-                        "uploaded": True,
-                        "sourceFileChecksums": {
-                            "file": {"hash": digest.hexdigest(), "algorithm": "SHA_256"}
-                        },
-                    },
-                }
-            },
-        )
+        commit = {
+            "data": {
+                "type": "buildUploadFiles",
+                "id": file_id,
+                "attributes": {
+                    "uploaded": True,
+                    "sourceFileChecksums": {"file": {"hash": digest.hexdigest(), "algorithm": "MD5"}},
+                },
+            }
+        }
+        try:
+            api("PATCH", f"/v1/buildUploadFiles/{file_id}", bearer, commit)
+        except SystemExit as error:
+            if "sourceFileChecksums" not in str(error):
+                raise
+            print(error)
+            print("Checksum was rejected. Committing the upload without it.")
+            api(
+                "PATCH",
+                f"/v1/buildUploadFiles/{file_id}",
+                bearer,
+                {
+                    "data": {
+                        "type": "buildUploadFiles",
+                        "id": file_id,
+                        "attributes": {"uploaded": True},
+                    }
+                },
+            )
         print(f"Committed build upload file {file_id}.")
         watch(upload_id, bearer, build, short)
     except SystemExit:
