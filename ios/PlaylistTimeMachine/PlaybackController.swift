@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import MusicKit
+import SwiftUI
 
 @MainActor
 final class PlaybackController: ObservableObject {
