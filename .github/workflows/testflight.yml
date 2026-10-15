@@ -11,6 +11,9 @@ on:
   push:
     branches:
       - cursor/ios-app-v1-d049
+    paths:
+      - "ios/**"
+      - ".github/scripts/asc_upload.py"
   workflow_dispatch:
 
 concurrency:
