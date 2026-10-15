@@ -1,0 +1,45 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          xcodebuild -version
+          xcodebuild -showsdks
+          sdk="$(xcodebuild -showsdks | awk '$NF ~ /^iphoneos/ {print $NF}' | tail -1)"
+          echo "Selected iOS SDK: ${sdk}"
+          case "${sdk}" in
+            iphoneos26*|iphoneos2[7-9]*|iphoneos[3-9][0-9]*) ;;
+            *) echo "The simulator build must use the iOS 26 SDK or later."; exit 1 ;;
+          esac
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build for the iOS Simulator
+        working-directory: ios
+        run: >
+          xcodebuild
+          -project PlaylistTimeMachine.xcodeproj
+          -scheme PlaylistTimeMachine
+          -destination 'generic/platform=iOS Simulator'
+          -quiet
+          CODE_SIGNING_ALLOWED=NO
+          build

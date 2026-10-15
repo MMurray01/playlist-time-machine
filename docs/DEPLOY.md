@@ -57,3 +57,25 @@ People who already use another service can read `/from-spotify`. That page links
 2. Add the Supabase and Apple Music variables above.
 3. Open `/`, enter `1984`, and choose **Build my playlist**. The hit count is the library’s row count. Class of 1984 is 255 songs, starting with Too Much Heaven, Da Ya Think I'm Sexy?, and I Will Survive.
 4. **Save to Apple Music** is the save button. Share is next to it.
+
+## iOS app routes
+
+The native app calls two routes. The website still builds and shares playlists through its server actions, and these routes do not change those pages.
+
+| Route | Use |
+| --- | --- |
+| `GET /api/playlist?year=&genres=` | The eleven-year playlist, catalog matches, and the square playlist artwork. `GET /api/playlist` with no year returns the year limits. `GET /api/playlist?id=` opens a share link. |
+| `POST /api/share` | Creates the same `shared_playlists` row as the website. The body is `{ graduationYear, title, genres }`. The service role key stays on the server. |
+| `/.well-known/apple-app-site-association` | Universal links for `/p/*`. |
+
+The association file uses app id `WS2R3SYV4W.com.abeba.playlisttimemachine`. Apple does not follow redirects when it fetches this file, and the response must be `200` with `Content-Type: application/json`.
+
+`www.playlisttimemachine.com` is attached to production with no redirect, so `https://www.playlisttimemachine.com/.well-known/apple-app-site-association` is served by this route once the app is deployed.
+
+`playlisttimemachine.com` is a Vercel domain redirect to `www.playlisttimemachine.com` (HTTP 307, `text/plain`, issued by Vercel before Next.js). No app route, `next.config` redirect, or middleware can answer that path on the apex while the domain redirect is on. Do not add `vercel.json`. To let Apple verify `applinks:playlisttimemachine.com`:
+
+1. In the Vercel project `v0-playlist-time-machine-jv`, open Settings → Domains.
+2. Edit `playlisttimemachine.com` and turn off **Redirect to** `www.playlisttimemachine.com`. Assign the apex to Production with no redirect, so both hosts reach this Next.js app.
+3. After that, add an application redirect that sends every apex path except `/.well-known/apple-app-site-association` to the same path on `https://www.playlisttimemachine.com`. Leave the association file itself as a `200` with no `Location` header.
+
+Until step 2 is done in the dashboard, the apex association file cannot be verified. This change is not made from the repo.

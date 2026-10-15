@@ -1,0 +1,21 @@
+name: App Store Connect status
+
+# Reads builds and build uploads for com.abeba.playlisttimemachine.
+# Does not archive or upload. Secrets: ASC_ISSUER_ID, ASC_KEY_ID, ASC_PRIVATE_KEY.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    name: Query builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Query App Store Connect
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: python3 -u .github/scripts/asc_status.py
