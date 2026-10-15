@@ -145,93 +145,7 @@ jobs:
 
       - name: Verify the App Store Connect API key
         if: steps.secrets.outputs.present == 'true'
-        run: |
-          set +x
-          python3 - << 'PY'
-          import base64
-          import json
-          import os
-          import subprocess
-          import time
-          import urllib.error
-          import urllib.request
-
-          def b64url(data: bytes) -> str:
-              return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
-
-          def der_to_raw(der: bytes) -> bytes:
-              index = 0
-
-              def read_length(buf, cursor):
-                  length = buf[cursor]
-                  cursor += 1
-                  if length < 0x80:
-                      return length, cursor
-                  count = length & 0x7F
-                  length = int.from_bytes(buf[cursor : cursor + count], "big")
-                  return length, cursor + count
-
-              if der[index] != 0x30:
-                  raise SystemExit("OpenSSL returned a signature this workflow could not read.")
-              index += 1
-              _, index = read_length(der, index)
-
-              def read_int(buf, cursor):
-                  if buf[cursor] != 0x02:
-                      raise SystemExit("OpenSSL returned a signature this workflow could not read.")
-                  cursor += 1
-                  length, cursor = read_length(buf, cursor)
-                  value = buf[cursor : cursor + length].lstrip(b"\x00") or b"\x00"
-                  return value.rjust(32, b"\x00"), cursor + length
-
-              part_r, index = read_int(der, index)
-              part_s, index = read_int(der, index)
-              if len(part_r) != 32 or len(part_s) != 32:
-                  raise SystemExit("The API key is not a P-256 key.")
-              return part_r + part_s
-
-          key_id = os.environ["ASC_KEY_ID"]
-          issuer = os.environ["ASC_ISSUER_ID"]
-          now = int(time.time())
-          header = b64url(json.dumps({"alg": "ES256", "kid": key_id, "typ": "JWT"}, separators=(",", ":")).encode())
-          payload = b64url(
-              json.dumps(
-                  {"iss": issuer, "iat": now - 60, "exp": now + 600, "aud": "appstoreconnect-v1"},
-                  separators=(",", ":"),
-              ).encode()
-          )
-          signing_input = f"{header}.{payload}".encode()
-          signed = subprocess.run(
-              ["openssl", "dgst", "-sha256", "-sign", os.environ["KEY_PATH"], "-binary"],
-              input=signing_input,
-              capture_output=True,
-          )
-          if signed.returncode != 0:
-              raise SystemExit("Could not sign an App Store Connect token with ASC_PRIVATE_KEY.")
-          token = signing_input.decode() + "." + b64url(der_to_raw(signed.stdout))
-          request = urllib.request.Request(
-              "https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=com.abeba.playlisttimemachine&limit=1",
-              headers={"Authorization": f"Bearer {token}"},
-          )
-          try:
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  body = response.read().decode()
-                  status = response.status
-          except urllib.error.HTTPError as error:
-              detail = error.read().decode(errors="replace")[:500]
-              raise SystemExit(
-                  "App Store Connect rejected this API key "
-                  f"(HTTP {error.code}). Confirm ASC_KEY_ID is the Admin key, ASC_PRIVATE_KEY is the .p8 downloaded for that key, "
-                  "and ASC_ISSUER_ID is the Issuer ID at the top of Users and Access, Integrations, Team Keys. "
-                  f"Apple said: {detail}"
-              )
-          count = len(json.loads(body).get("data", []))
-          print(f"App Store Connect accepted the API key (HTTP {status}, apps with this bundle id: {count}).")
-          if count == 0:
-              raise SystemExit(
-                  "The API key works, but App Store Connect has no app with bundle id com.abeba.playlisttimemachine."
-              )
-          PY
+        run: python3 .github/scripts/asc_upload.py --check
 
       - name: Archive for App Store Connect
         if: steps.secrets.outputs.present == 'true'
@@ -316,13 +230,8 @@ jobs:
             echo "The IPA is not signed with an Apple Distribution certificate, so it cannot be uploaded."
             exit 1
           fi
-          # altool searches ./private_keys, ~/private_keys, ~/.private_keys,
-          # and ~/.appstoreconnect/private_keys for AuthKey_<id>.p8.
-          xcrun altool --upload-app \
-            --file "${ipa}" \
-            --type ios \
-            --apiKey "${ASC_KEY_ID}" \
-            --apiIssuer "${ASC_ISSUER_ID}"
+          # altool rejects this key's JWT. The build upload API accepts the same key.
+          python3 .github/scripts/asc_upload.py "${ipa}"
           {
             echo "### TestFlight"
             echo "Uploaded build ${{ github.run_number }} (version 1.0) to App Store Connect."
