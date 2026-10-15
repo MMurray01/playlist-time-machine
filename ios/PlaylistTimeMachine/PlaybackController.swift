@@ -14,7 +14,7 @@ final class PlaybackController: ObservableObject {
     @Published var canOfferSubscription = false
     @Published var showOffer = false
     @Published var offerSongID: String?
-    @Published var offerMessage: MusicSubscriptionOffer.Options.MessageIdentifier = .playMusic
+    @Published var offerMessage: MusicSubscriptionOffer.MessageIdentifier = .playMusic
 
     private var songs: [ApiHit] = []
     private var previewPlayer: AVPlayer?
