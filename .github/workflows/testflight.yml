@@ -124,7 +124,7 @@ jobs:
           <plist version="1.0">
           <dict>
           	<key>destination</key>
-          	<string>upload</string>
+          	<string>export</string>
           	<key>manageAppVersionAndBuildNumber</key>
           	<false/>
           	<key>method</key>
@@ -147,6 +147,15 @@ jobs:
             -authenticationKeyPath "${KEY_PATH}" \
             -authenticationKeyID "${ASC_KEY_ID}" \
             -authenticationKeyIssuerID "${ASC_ISSUER_ID}"
+          ipa="$(find "${RUNNER_TEMP}/export" -name '*.ipa' -print -quit)"
+          if [ -z "${ipa}" ]; then
+            echo "Export did not produce an ipa."
+            exit 1
+          fi
+          xcrun altool --upload-app \
+            --file "${ipa}" \
+            --apiKey "${ASC_KEY_ID}" \
+            --apiIssuer "${ASC_ISSUER_ID}"
           {
             echo "### TestFlight"
             echo "Uploaded build ${{ github.run_number }} (version 1.0) to App Store Connect."
