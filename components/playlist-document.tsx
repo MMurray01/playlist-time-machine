@@ -247,6 +247,8 @@ function YearBlock({
                       {weeks ? ` · ${weeks}` : ""}
                     </span>
                   </button>
+                </div>
+                <div className="track-actions">
                   <button
                     type="button"
                     className="track-play"
@@ -259,14 +261,14 @@ function YearBlock({
                   >
                     {playingKey === key ? "Pause" : "Play"}
                   </button>
+                  <AppleMusicBadge
+                    url={entry?.url}
+                    title={hit.title}
+                    artist={hit.artist}
+                    placement={badgePlacement}
+                    affiliateToken={affiliateToken}
+                  />
                 </div>
-                <AppleMusicBadge
-                  url={entry?.url}
-                  title={hit.title}
-                  artist={hit.artist}
-                  placement={badgePlacement}
-                  affiliateToken={affiliateToken}
-                />
               </li>
             )
           })}
@@ -307,7 +309,6 @@ export function PlaylistDocument({
   const [unmatched, setUnmatched] = useState<UnmatchedTrack[]>([])
   const [busy, setBusy] = useState(false)
   const [playingKey, setPlayingKey] = useState<string | null>(null)
-  const [autoAdvance, setAutoAdvance] = useState(true)
   const [collageOpen, setCollageOpen] = useState(openCollage)
   const [CollageView, setCollageView] = useState<typeof import("@/components/cover-collage").CoverCollage | null>(null)
   const previewAudio = useRef<HTMLAudioElement>(null)
@@ -656,7 +657,7 @@ export function PlaylistDocument({
   }
 
   function advancePreview() {
-    if (!autoAdvance || !playingKey) {
+    if (!playingKey) {
       setPlayingKey(null)
       return
     }
@@ -857,12 +858,9 @@ export function PlaylistDocument({
         <button type="button" aria-pressed={browse === "list"} onClick={() => chooseView("list")}>
           List
         </button>
-        <button type="button" aria-pressed={autoAdvance} onClick={() => setAutoAdvance((current) => !current)}>
-          {autoAdvance ? "Next preview: on" : "Next preview: off"}
-        </button>
       </div>
       <audio ref={previewAudio} preload="none" onEnded={advancePreview} />
-      <p className="courtesy">Preview provided courtesy of Apple.</p>
+      <p className="courtesy">Song previews provided courtesy of iTunes.</p>
 
       <div>
         {playlist.years.map((chapter) => (

@@ -585,12 +585,27 @@ main.sheet-screen .home-stage {
   font-size: 0.92rem;
 }
 
+.track-title {
+  font-size: 1.125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .lead-artist,
 .track-meta {
   margin-top: 0.15rem;
   color: var(--ptm-ink-soft);
   font-size: 0.8rem;
   line-height: 1.35;
+}
+
+.track-meta {
+  margin-top: 0.22rem;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .year-block {
@@ -681,6 +696,8 @@ main.sheet-screen .home-stage {
   flex-direction: column;
   justify-content: center;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   margin: 0;
   padding: 0.1rem 0;
@@ -697,17 +714,30 @@ main.sheet-screen .home-stage {
   border-radius: 10px;
 }
 
-.track .apple-badge {
-  justify-self: end;
-}
-
-.track .apple-badge img {
+.track-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
   width: calc(32px * 444 / 130);
-  height: 32px;
 }
 
-.track-main .track-play {
-  margin-top: 0.45rem;
+.track-actions .track-play {
+  width: 100%;
+  min-width: 0;
+  padding-right: 0.45rem;
+  padding-left: 0.45rem;
+}
+
+.track-actions .apple-badge {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+}
+
+.track-actions .apple-badge img {
+  width: 100%;
+  height: auto;
 }
 
 .track-play {
@@ -1101,11 +1131,6 @@ main.sheet-screen .home-stage {
 
 .song-dialog-actions .song-play {
   margin-top: 0;
-}
-
-.song-dialog-actions .courtesy {
-  margin: 0;
-  text-align: center;
 }
 
 .cover-detail {

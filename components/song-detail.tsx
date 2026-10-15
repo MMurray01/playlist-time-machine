@@ -142,7 +142,6 @@ export function SongDetail({
             <button type="button" className="btn btn-accent song-play" onClick={() => void togglePreview()}>
               {playing ? "Pause preview" : "Play 30-second preview"}
             </button>
-            <p className="courtesy">Preview provided courtesy of Apple.</p>
           </>
         ) : (
           <p className="quiet">{match === undefined ? "Looking up a preview." : "This song has no preview."}</p>
