@@ -38,12 +38,6 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         CURRENT_PROJECT_VERSION: "1"
         MARKETING_VERSION: "1.0"
-      configs:
-        Release:
-          # App Store profiles do not need a registered device. A development
-          # identity makes automatic signing fail on a team with no devices.
-          CODE_SIGN_IDENTITY: "Apple Distribution"
-          "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "Apple Distribution"
     scheme:
       testTargets:
         - PlaylistTimeMachineTests

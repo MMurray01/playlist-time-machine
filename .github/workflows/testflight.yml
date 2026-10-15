@@ -77,27 +77,24 @@ jobs:
       - name: Archive for App Store Connect
         if: steps.secrets.outputs.present == 'true'
         working-directory: ios
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           echo "Build number: ${{ github.run_number }}"
+          # Ad-hoc signature only. Automatic signing here asks for a development
+          # profile, and this team has no registered devices. The export step
+          # applies the App Store signature.
           xcodebuild \
             -project PlaylistTimeMachine.xcodeproj \
             -scheme PlaylistTimeMachine \
             -configuration Release \
-            -destination 'generic/platform=iOS' \
+            -destination "generic/platform=iOS" \
             -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "${KEY_PATH}" \
-            -authenticationKeyID "${ASC_KEY_ID}" \
-            -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
-          CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-          DEVELOPMENT_TEAM=WS2R3SYV4W \
-          CODE_SIGN_STYLE=Automatic \
-          CODE_SIGN_IDENTITY="Apple Distribution" \
-          "CODE_SIGN_IDENTITY[sdk=iphoneos*]"="Apple Distribution" \
-          archive
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGN_STYLE=Manual \
+            "CODE_SIGN_IDENTITY=-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM=WS2R3SYV4W \
+            archive
 
       - name: Export and upload to App Store Connect
         if: steps.secrets.outputs.present == 'true'
