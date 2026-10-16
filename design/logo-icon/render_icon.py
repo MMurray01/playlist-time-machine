@@ -28,7 +28,6 @@ SIZE = 1024
 SCALE = 3
 N = SIZE * SCALE
 
-NAVY = np.array([18, 12, 48], dtype=np.float32)
 INK = np.array([16, 10, 42], dtype=np.float32)
 
 
