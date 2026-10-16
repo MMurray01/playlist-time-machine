@@ -78,8 +78,26 @@ AGE_BOOLEANS = {
     "unrestrictedWebAccess": False,
     "userGeneratedContent": False,
 }
-SCREENSHOT_TYPES = ("APP_IPHONE_69", "APP_IPHONE_67")
-ACCEPTED_SIZES = {(1320, 2868), (1290, 2796), (1260, 2736)}
+SCREENSHOT_SLOTS = (
+    {
+        "folder": "iphone-69",
+        "label": "iPhone 6.9-inch",
+        "types": ("APP_IPHONE_69", "APP_IPHONE_67"),
+        "sizes": {(1320, 2868), (1290, 2796), (1260, 2736)},
+    },
+    {
+        "folder": "iphone-duo",
+        "label": "iPhone Duo",
+        "types": ("APP_IPHONE_DUO",),
+        "sizes": {(1398, 2034), (2007, 2853)},
+    },
+    {
+        "folder": "ipad-13",
+        "label": "iPad 13-inch",
+        "types": ("APP_IPAD_PRO_129", "APP_IPAD_PRO_3GEN_129"),
+        "sizes": {(2064, 2752), (2048, 2732)},
+    },
+)
 
 
 def check_copy() -> None:
@@ -578,23 +596,8 @@ def upload_screenshot(bearer: str, screenshot_set: str, path: pathlib.Path, fail
         failures.append(f"commit screenshot {path.name}")
 
 
-def set_screenshots(bearer: str, localization: dict | None, failures: list[str]) -> None:
-    folder = pathlib.Path(os.environ.get("ASC_SCREENSHOT_DIR") or "")
-    images = sorted(folder.glob("*.png")) if folder.is_dir() else []
-    if not images:
-        failures.append("6.9-inch screenshots were not produced")
-        return
-    if localization is None:
-        failures.append("screenshot localization")
-        return
-    for image in images:
-        width, height = png_size(image)
-        if (width, height) not in ACCEPTED_SIZES:
-            failures.append(f"{image.name} is {width}x{height}")
-            return
-    screenshot_set = None
-    display_type = None
-    for kind in SCREENSHOT_TYPES:
+def ensure_screenshot_set(bearer: str, localization: dict, types: tuple[str, ...]) -> tuple[str, str] | None:
+    for kind in types:
         listed = call(
             "GET",
             f"/v1/appStoreVersionLocalizations/{localization['id']}/appScreenshotSets"
@@ -603,9 +606,7 @@ def set_screenshots(bearer: str, localization: dict | None, failures: list[str])
         )
         found = (listed[1].get("data") if listed else None) or []
         if found:
-            screenshot_set = found[0]["id"]
-            display_type = kind
-            break
+            return found[0]["id"], kind
         created = call(
             "POST",
             "/v1/appScreenshotSets",
@@ -623,18 +624,69 @@ def set_screenshots(bearer: str, localization: dict | None, failures: list[str])
             },
         )
         if created:
-            screenshot_set = created[1]["data"]["id"]
-            display_type = kind
-            break
-    if not screenshot_set:
-        failures.append("screenshot set")
+            return created[1]["data"]["id"], kind
+    return None
+
+
+def upload_screenshot_slot(
+    bearer: str,
+    localization: dict,
+    folder: pathlib.Path,
+    slot: dict,
+    failures: list[str],
+) -> None:
+    images = sorted(folder.glob("*.png"))
+    label = slot["label"]
+    if len(images) < 3 or len(images) > 10:
+        failures.append(f"{label} screenshots were not produced")
         return
-    print(f"Screenshot display type: {display_type}")
+    for image in images:
+        width, height = png_size(image)
+        if (width, height) not in slot["sizes"]:
+            failures.append(f"{label} {image.name} is {width}x{height}")
+            return
+    size = png_size(images[0])
+    preferred = {
+        (2048, 2732): ("APP_IPAD_PRO_3GEN_129", "APP_IPAD_PRO_129"),
+        (2064, 2752): ("APP_IPAD_PRO_129",),
+    }
+    ready = ensure_screenshot_set(bearer, localization, preferred.get(size, slot["types"]))
+    if ready is None:
+        failures.append(f"{label} screenshot set")
+        return
+    screenshot_set, display_type = ready
+    print(f"Screenshot display type for {label}: {display_type}")
     existing = call("GET", f"/v1/appScreenshotSets/{screenshot_set}/appScreenshots?limit=20", bearer)
     for item in (existing[1].get("data") if existing else None) or []:
         call("DELETE", f"/v1/appScreenshots/{item['id']}", bearer)
+    uploaded = 0
+    before = len(failures)
     for image in images:
         upload_screenshot(bearer, screenshot_set, image, failures)
+        if len(failures) > before:
+            return
+        uploaded += 1
+    print(f"SCREENSHOT COUNT {label}: {uploaded}")
+
+
+def set_screenshots(bearer: str, localization: dict | None, failures: list[str]) -> None:
+    root = pathlib.Path(os.environ.get("ASC_SCREENSHOT_DIR") or "")
+    if localization is None:
+        failures.append("screenshot localization")
+        return
+    if not root.is_dir():
+        failures.append("screenshots were not produced")
+        return
+    produced = 0
+    for slot in SCREENSHOT_SLOTS:
+        folder = root / slot["folder"]
+        if not folder.is_dir():
+            failures.append(f"{slot['label']} screenshots were not produced")
+            continue
+        produced += 1
+        upload_screenshot_slot(bearer, localization, folder, slot, failures)
+    if produced == 0:
+        failures.append("screenshots were not produced")
 
 
 def newest_ready_build(bearer: str):

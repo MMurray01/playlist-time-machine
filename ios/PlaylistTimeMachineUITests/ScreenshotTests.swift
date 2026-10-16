@@ -1,11 +1,16 @@
 import XCTest
 
-/// Store screenshots for the 6.9-inch iPhone slot. The test runner writes PNGs on the Mac.
+/// Store screenshots. The Mac runner writes /tmp/ptm-shot-config.json with the
+/// output folder and the pixel sizes accepted for this simulator.
 final class ScreenshotTests: XCTestCase {
-    private let shotDirectory = "/tmp/ptm-screenshots"
+    private struct ShotConfig {
+        var directory: String
+        var sizes: [(Int, Int)]
+    }
 
     func testStoreScreenshots() throws {
-        let directory = URL(fileURLWithPath: shotDirectory, isDirectory: true)
+        let config = loadConfig()
+        let directory = URL(fileURLWithPath: config.directory, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
             try FileManager.default.removeItem(at: file)
@@ -22,20 +27,20 @@ final class ScreenshotTests: XCTestCase {
         waitForExpectations(timeout: 40)
         // Let the cover wall finish loading before the first frame.
         sleep(3)
-        try save("01-year-picker", from: app, to: directory)
+        try save("01-year-picker", from: app, to: directory, sizes: config.sizes)
 
         build.tap()
 
         let artwork = app.buttons["Playlist artwork"]
         XCTAssertTrue(artwork.waitForExistence(timeout: 90), app.debugDescription)
         sleep(4)
-        try save("02-results-collage", from: app, to: directory)
+        try save("02-results-collage", from: app, to: directory, sizes: config.sizes)
 
         let list = app.buttons["List View"]
         XCTAssertTrue(list.waitForExistence(timeout: 10))
         list.tap()
         sleep(2)
-        try save("03-list-view", from: app, to: directory)
+        try save("03-list-view", from: app, to: directory, sizes: config.sizes)
 
         let songs = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", " by "))
         XCTAssertTrue(songs.firstMatch.waitForExistence(timeout: 15), app.debugDescription)
@@ -51,7 +56,7 @@ final class ScreenshotTests: XCTestCase {
         let songVisible = preview.waitForExistence(timeout: 15) || listen.waitForExistence(timeout: 5)
         XCTAssertTrue(songVisible, app.debugDescription)
         sleep(2)
-        try save("04-song-sheet", from: app, to: directory)
+        try save("04-song-sheet", from: app, to: directory, sizes: config.sizes)
 
         app.buttons["Close"].tap()
         let saveMusic = app.buttons["Save to Apple Music"]
@@ -66,19 +71,42 @@ final class ScreenshotTests: XCTestCase {
         let name = app.staticTexts["Name your Playlist"]
         XCTAssertTrue(name.waitForExistence(timeout: 10), app.debugDescription)
         sleep(1)
-        try save("05-save-apple-music", from: app, to: directory)
+        try save("05-save-apple-music", from: app, to: directory, sizes: config.sizes)
     }
 
-    private func save(_ name: String, from app: XCUIApplication, to directory: URL) throws {
+    private func loadConfig() -> ShotConfig {
+        let fallback = ShotConfig(
+            directory: "/tmp/ptm-screenshots",
+            sizes: [(1320, 2868), (1290, 2796), (1260, 2736)]
+        )
+        let url = URL(fileURLWithPath: "/tmp/ptm-shot-config.json")
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let directory = json["directory"] as? String,
+              let tokens = json["sizes"] as? [String] else {
+            return fallback
+        }
+        let sizes = tokens.compactMap { token -> (Int, Int)? in
+            let parts = token.split(separator: "x")
+            guard parts.count == 2, let width = Int(parts[0]), let height = Int(parts[1]), width > 0, height > 0 else {
+                return nil
+            }
+            return (width, height)
+        }
+        guard !sizes.isEmpty else { return fallback }
+        return ShotConfig(directory: directory, sizes: sizes)
+    }
+
+    private func save(_ name: String, from app: XCUIApplication, to directory: URL, sizes: [(Int, Int)]) throws {
         let screenshot = XCUIScreen.main.screenshot()
         let data = screenshot.pngRepresentation
         let url = directory.appendingPathComponent("\(name).png")
         try data.write(to: url)
         let (width, height) = pngPixelSize(data)
-        let accepted = [(1320, 2868), (1290, 2796), (1260, 2736)]
+        let accepted = sizes.map { "\($0.0)x\($0.1)" }.joined(separator: ", ")
         XCTAssertTrue(
-            accepted.contains { $0.0 == width && $0.1 == height },
-            "\(name) is \(width)x\(height). The 6.9-inch slot needs 1320x2868, 1290x2796, or 1260x2736."
+            sizes.contains { $0.0 == width && $0.1 == height },
+            "\(name) is \(width)x\(height). Accepted sizes: \(accepted)."
         )
         _ = app
     }

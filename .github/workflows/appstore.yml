@@ -1,8 +1,9 @@
 name: App Store metadata
 
 # Fills version 1.0 in App Store Connect and attaches the newest valid build
-# above 30. It does not submit for review. This file is not in the TestFlight
-# path filter, so editing it does not upload another build.
+# above 30. It also captures iPhone 6.9-inch, iPhone Duo, and iPad 13-inch
+# screenshots. It does not submit for review. This file is not in the
+# TestFlight path filter, so editing it does not upload another build.
 
 on:
   push:
@@ -60,76 +61,11 @@ jobs:
         working-directory: ios
         run: xcodegen generate
 
-      - name: Capture 6.9-inch screenshots
+      - name: Capture App Store screenshots
         id: shots
         if: steps.secrets.outputs.present == 'true'
         continue-on-error: true
-        working-directory: ios
-        run: |
-          set -euo pipefail
-          python3 - << 'PY'
-          import json
-          import subprocess
-          raw = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"])
-          devices = json.loads(raw)["devices"]
-          preferred = ("iPhone 16 Pro Max", "iPhone 17 Pro Max", "iPhone 15 Pro Max", "iPhone 14 Pro Max")
-          found = []
-          for runtime, entries in devices.items():
-              if "iOS" not in runtime:
-                  continue
-              for device in entries:
-                  if device.get("isAvailable", True) and device.get("name") in preferred:
-                      found.append((runtime, preferred.index(device["name"]), device["udid"], device["name"]))
-          if not found:
-              raise SystemExit("No iPhone Pro Max simulator is installed.")
-          found.sort(key=lambda item: (item[0], -item[1]), reverse=True)
-          with open("/tmp/ptm-simulators.txt", "w") as handle:
-              for _runtime, _index, udid, name in found:
-                  handle.write(f"{udid}\t{name}\n")
-          PY
-          # macOS ships bash 3.2, which has no mapfile.
-          CANDIDATES=()
-          while IFS= read -r row; do
-            CANDIDATES+=("$row")
-          done < /tmp/ptm-simulators.txt
-          accepted="1320x2868 1290x2796 1260x2736"
-          chosen=""
-          for row in "${CANDIDATES[@]}"; do
-            udid="${row%%$'\t'*}"
-            name="${row#*$'\t'}"
-            echo "Probing ${name} (${udid})"
-            xcrun simctl boot "${udid}" || true
-            xcrun simctl bootstatus "${udid}" -b
-            xcrun simctl io "${udid}" screenshot "${RUNNER_TEMP}/probe.png"
-            size="$(sips -g pixelWidth -g pixelHeight "${RUNNER_TEMP}/probe.png" | awk '/pixelWidth/ {w=$2} /pixelHeight/ {h=$2} END {print w "x" h}')"
-            echo "${name} screenshot is ${size}"
-            if [[ " ${accepted} " == *" ${size} "* ]]; then
-              chosen="${udid}"
-              echo "Using ${name}"
-              break
-            fi
-            xcrun simctl shutdown "${udid}" || true
-          done
-          if [ -z "${chosen}" ]; then
-            echo "No Pro Max simulator produced a 6.9-inch screenshot."
-            exit 1
-          fi
-          xcrun simctl status_bar "${chosen}" override \
-            --time "9:41" \
-            --batteryState charged \
-            --batteryLevel 100 \
-            --wifiBars 3 \
-            --cellularMode active \
-            --cellularBars 4
-          mkdir -p "${RUNNER_TEMP}/shots"
-          xcodebuild test \
-            -project PlaylistTimeMachine.xcodeproj \
-            -scheme PlaylistTimeMachine \
-            -destination "platform=iOS Simulator,id=${chosen}" \
-            -only-testing:PlaylistTimeMachineUITests/ScreenshotTests/testStoreScreenshots \
-            CODE_SIGNING_ALLOWED=NO
-          cp /tmp/ptm-screenshots/*.png "${RUNNER_TEMP}/shots/"
-          ls -la "${RUNNER_TEMP}/shots"
+        run: python3 -u .github/scripts/capture_screenshots.py
 
       - name: Upload screenshot files
         if: steps.secrets.outputs.present == 'true'
