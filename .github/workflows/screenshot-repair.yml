@@ -6,6 +6,12 @@ name: Repair App Store screenshots
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - cursor/ios-build-15-feedback-d049
+    paths:
+      - .github/workflows/screenshot-repair.yml
+      - .github/scripts/repair_screenshots.py
 
 permissions:
   actions: read
