@@ -1,6 +1,13 @@
 import Foundation
 import UIKit
 
+enum AppleMusicSavePhase: Equatable {
+    case editing
+    case saving
+    case saved
+    case failed
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var yearText = ""
@@ -16,6 +23,7 @@ final class AppModel: ObservableObject {
     @Published var playlistError: String?
     @Published var showMusicSettings = false
     @Published var isWorking = false
+    @Published var appleMusicSavePhase: AppleMusicSavePhase = .editing
     @Published var artworkImage: UIImage?
     @Published var showCollage = false
     @Published var showAppleMusicSave = false
@@ -157,36 +165,50 @@ final class AppModel: ObservableObject {
     func save(playback: PlaybackController) async {
         guard let document else { return }
         isWorking = true
+        appleMusicSavePhase = .saving
         playlistError = nil
         showMusicSettings = false
         savedNote = ""
-        status = "Saving the playlist link."
-        defer { isWorking = false }
+        status = "Saving to Apple Music, please wait"
         _ = await ensureShare()
-        status = "Saving to Apple Music."
         let outcome = await LibrarySaver.save(
             hits: playlistHits.isEmpty ? document.playlist.hits : playlistHits,
             name: playlistName(),
             description: libraryDescription.isEmpty ? document.library.description : libraryDescription
         )
+        // MusicKit resumes off the main thread. Publish the result on the main actor
+        // or the sheet keeps the saving label after the playlist is already in the library.
+        await MainActor.run {
+            self.recordAppleMusicSave(outcome, playback: playback)
+        }
+    }
+
+    private func recordAppleMusicSave(_ outcome: LibrarySaveOutcome, playback: PlaybackController) {
+        isWorking = false
         switch outcome {
         case .saved(let count, let requested, let url, let missing):
             savedURL = url
             let missingNote = missing.isEmpty ? "" : " \(missing.count) \(missing.count == 1 ? "song was" : "songs were") not in Apple Music."
             savedNote = "Saved \(count) of \(requested) songs to Apple Music.\(missingNote)"
-            status = savedNote
+            playlistError = nil
+            showMusicSettings = false
+            status = "Saved to Apple Music, please close (X)"
+            appleMusicSavePhase = .saved
         case .needsOffer(let songID):
             playback.offerSongID = songID
             playback.offerMessage = .addMusic
             playback.showOffer = true
             status = ""
+            appleMusicSavePhase = .editing
         case .notAuthorized:
             showMusicSettings = true
             playlistError = "Apple Music access is off, so the playlist was not saved. 30-second previews still play here, and Listen on Apple Music still opens the song. Allow Apple Music for Playlist Time Machine in Settings to save it."
             status = ""
+            appleMusicSavePhase = .failed
         case .failed(let message):
             playlistError = message
             status = ""
+            appleMusicSavePhase = .failed
         }
     }
 
@@ -200,6 +222,7 @@ final class AppModel: ObservableObject {
         shareLink = nil
         playlistError = nil
         showMusicSettings = false
+        appleMusicSavePhase = .editing
         status = ""
         savedNote = ""
         selectedHit = nil
