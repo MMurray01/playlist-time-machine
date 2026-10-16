@@ -160,15 +160,15 @@ def ensure_version(bearer: str):
     return created[1]["data"]
 
 
-def set_app_info(bearer: str, failures: list[str]) -> None:
+def set_app_info(bearer: str, failures: list[str]) -> str | None:
     listed = call("GET", f"/v1/apps/{APP_ID}/appInfos?include=appInfoLocalizations&limit=10", bearer)
     if not listed:
         failures.append("app info")
-        return
+        return None
     infos = listed[1].get("data") or []
     if not infos:
         failures.append("app info missing")
-        return
+        return None
     info = infos[0]
     info_id = info["id"]
     print(f"App info {info_id} state {(info.get('attributes') or {}).get('appStoreState')}")
@@ -202,7 +202,7 @@ def set_app_info(bearer: str, failures: list[str]) -> None:
     localization = english(localizations)
     if localization is None:
         failures.append("app info localization")
-        return
+        return info_id
     attributes = {
         "name": NAME,
         "subtitle": SUBTITLE,
@@ -229,6 +229,7 @@ def set_app_info(bearer: str, failures: list[str]) -> None:
         print(f"Privacy policy URL: {saved.get('privacyPolicyUrl')}")
     else:
         failures.append("name, subtitle, or privacy policy URL")
+    return info_id
 
 
 def set_version_text(bearer: str, version: dict, failures: list[str]) -> dict | None:
@@ -306,23 +307,21 @@ def set_version_text(bearer: str, version: dict, failures: list[str]) -> dict | 
     return localization
 
 
-def set_age_rating(bearer: str, version: dict, failures: list[str]) -> None:
-    path = related(version, "ageRatingDeclaration")
-    if path is None:
-        fetched = call("GET", f"/v1/appStoreVersions/{version['id']}/ageRatingDeclaration", bearer)
-        declaration = (fetched[1].get("data") if fetched else None) or None
-    else:
-        fetched = call("GET", path, bearer)
-        declaration = fetched[1].get("data") if fetched else None
+def set_age_rating(bearer: str, app_info_id: str | None, failures: list[str]) -> None:
+    if not app_info_id:
+        failures.append("age rating declaration")
+        return
+    fetched = call("GET", f"/v1/appInfos/{app_info_id}/ageRatingDeclaration", bearer)
+    declaration = fetched[1].get("data") if fetched else None
     if not declaration:
         failures.append("age rating declaration")
         return
     declaration_id = declaration["id"]
     current = declaration.get("attributes") or {}
-    attributes = {}
-    for key, value in {**AGE_RATINGS, **AGE_BOOLEANS}.items():
-        if key in current or current.get(key) is None:
-            attributes[key] = value
+    known = {**AGE_RATINGS, **AGE_BOOLEANS}
+    attributes = {key: known[key] for key in current if key in known}
+    if not attributes:
+        attributes = dict(known)
     # Send the full questionnaire. Apple ignores nothing we know about; unknown keys are retried one by one.
     patched = call(
         "PATCH",
@@ -401,13 +400,21 @@ def usage_id(resource, name: str) -> str:
     return str(data.get("id") or "")
 
 
-def set_privacy(bearer: str, failures: list[str]) -> None:
+def set_privacy(bearer: str, failures: list[str], manual: list[str]) -> None:
     listed = call(
         "GET",
-        f"/v1/apps/{APP_ID}/dataUsages?include=category,purpose,dataProtection&limit=50",
+        f"/v1/apps/{APP_ID}/appDataUsages?include=category,purpose,dataProtection&limit=50",
         bearer,
     )
-    existing = (listed[1].get("data") if listed else None) or []
+    if listed is None:
+        manual.append(
+            "App Privacy. The public App Store Connect API has no nutrition-label resource. "
+            "In App Store Connect, declare Other User Content for the graduation year and playlist "
+            "name stored when a share link is created. Purpose: App Functionality. "
+            "Not linked to identity. Not used for tracking. No other data types."
+        )
+        return
+    existing = listed[1].get("data") or []
     wanted = ("OTHER_USER_CONTENT", "APP_FUNCTIONALITY", "DATA_NOT_LINKED_TO_YOU")
     matches = [
         item
@@ -711,7 +718,8 @@ def main() -> None:
     write_key()
     bearer = token()
     failures: list[str] = []
-    set_app_info(bearer, failures)
+    manual: list[str] = []
+    app_info_id = set_app_info(bearer, failures)
     version = ensure_version(bearer)
     localization = None
     if version is None:
@@ -721,15 +729,18 @@ def main() -> None:
         refreshed = call("GET", f"/v1/appStoreVersions/{version['id']}", bearer)
         if refreshed:
             version = refreshed[1]["data"]
-        set_age_rating(bearer, version, failures)
+        set_age_rating(bearer, app_info_id, failures)
         set_review_notes(bearer, version, failures)
-    set_privacy(bearer, failures)
+    set_privacy(bearer, failures, manual)
     set_screenshots(bearer, localization, failures)
     if version is not None:
         attach_build(bearer, version, failures)
     print("METADATA FAILURES: " + (", ".join(failures) if failures else "none"))
+    print("NOT AVAILABLE IN THE API: " + (" | ".join(manual) if manual else "none"))
     result = pathlib.Path(os.environ.get("ASC_RESULT_PATH") or "/tmp/asc-metadata-result.json")
-    result.write_text(json.dumps({"failures": failures, "subtitle": SUBTITLE, "keywords": KEYWORDS}, indent=2))
+    result.write_text(
+        json.dumps({"failures": failures, "manual": manual, "subtitle": SUBTITLE, "keywords": KEYWORDS}, indent=2)
+    )
     if failures:
         raise SystemExit(1)
 

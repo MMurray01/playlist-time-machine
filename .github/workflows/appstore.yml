@@ -87,7 +87,11 @@ jobs:
               for _runtime, _index, udid, name in found:
                   handle.write(f"{udid}\t{name}\n")
           PY
-          mapfile -t CANDIDATES < /tmp/ptm-simulators.txt
+          # macOS ships bash 3.2, which has no mapfile.
+          CANDIDATES=()
+          while IFS= read -r row; do
+            CANDIDATES+=("$row")
+          done < /tmp/ptm-simulators.txt
           accepted="1320x2868 1290x2796 1260x2736"
           chosen=""
           for row in "${CANDIDATES[@]}"; do
