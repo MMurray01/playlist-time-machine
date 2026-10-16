@@ -10,10 +10,10 @@ struct YearPickerView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(Theme.inkSoft)
                 Text("Rediscover the soundtrack of your life")
-                    .font(.system(size: 36, weight: .bold))
+                    .font(.system(size: 46, weight: .bold))
                     .foregroundColor(Theme.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Your first dance, graduation, those long summer nights. Enter your high school graduation year and get the number one hits from the eleven years that shaped you, the popular songs of the time.")
+                Text("Let Playlist Time Machine take your early years of music discovery.  Enter your high school graduation year, and be ready to be taken back in time with artists and songs that filled your days and nights.")
                     .font(.body)
                     .foregroundColor(Theme.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
@@ -80,7 +80,7 @@ struct YearPickerView: View {
 
                 if model.isBuilding, let year = model.validYear {
                     let window = YearWindow.window(year)
-                    Text("Gathering every No. 1 from \(window.start) through \(window.end).")
+                    Text("Gathering every No. 1 from \(YearWindow.digits(window.start)) through \(YearWindow.digits(window.end)).")
                         .font(.subheadline)
                         .foregroundColor(Theme.inkSoft)
                         .frame(maxWidth: .infinity, alignment: .center)

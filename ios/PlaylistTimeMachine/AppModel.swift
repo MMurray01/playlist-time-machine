@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     @Published var browse: BrowseMode = .flow
     @Published var status = ""
     @Published var playlistError: String?
+    @Published var showMusicSettings = false
     @Published var isWorking = false
     @Published var artworkImage: UIImage?
     @Published var showCollage = false
@@ -39,12 +40,12 @@ final class AppModel: ObservableObject {
     var windowHint: String {
         if let year = validYear {
             let window = YearWindow.window(year)
-            return "Class of \(year) includes every No. 1 from \(window.start) through \(window.end)."
+            return "Class of \(YearWindow.digits(year)) includes every No. 1 from \(YearWindow.digits(window.start)) through \(YearWindow.digits(window.end))."
         }
         if let year = typedYear {
             return YearWindow.message(year, limits: limits)
         }
-        return "Enter the year you graduated high school, from \(limits.min) through \(limits.max)."
+        return "Enter the year you graduated high school, from \(YearWindow.digits(limits.min)) through \(YearWindow.digits(limits.max))."
     }
 
     var sliderYear: Int { validYear ?? limits.min }
@@ -118,14 +119,14 @@ final class AppModel: ObservableObject {
     }
 
     func renderPrintArtwork() async -> UIImage? {
-        guard let artwork = document?.artwork, let playlist = document?.playlist else { return nil }
-        let link = await ensureShare()
-        let headline = PlaylistImages.headline(
-            title: playlistName(),
-            start: playlist.startYear,
-            end: playlist.endYear
-        )
-        return await PlaylistImages.renderPrintArtwork(artwork, headline: headline, link: link?.url)
+        guard let artwork = document?.artwork else { return nil }
+        _ = await ensureShare()
+        return await PlaylistImages.renderPrintArtwork(artwork)
+    }
+
+    func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     func share() async {
@@ -154,6 +155,7 @@ final class AppModel: ObservableObject {
         guard let document else { return }
         isWorking = true
         playlistError = nil
+        showMusicSettings = false
         savedNote = ""
         status = "Saving the playlist link."
         defer { isWorking = false }
@@ -176,7 +178,8 @@ final class AppModel: ObservableObject {
             playback.showOffer = true
             status = ""
         case .notAuthorized:
-            playlistError = "Apple Music sign-in was canceled."
+            showMusicSettings = true
+            playlistError = "Apple Music access is off, so the playlist was not saved. 30-second previews still play here, and Listen on Apple Music still opens the song. Allow Apple Music for Playlist Time Machine in Settings to save it."
             status = ""
         case .failed(let message):
             playlistError = message
@@ -192,6 +195,7 @@ final class AppModel: ObservableObject {
         showCollage = false
         shareLink = nil
         playlistError = nil
+        showMusicSettings = false
         status = ""
         savedNote = ""
         selectedHit = nil
@@ -271,14 +275,8 @@ final class AppModel: ObservableObject {
             artworkImage = nil
             return
         }
-        let headline = PlaylistImages.headline(
-            title: YearWindow.cleanTitle(titleDraft, graduationYear: document?.playlist.graduationYear ?? 0),
-            start: document?.playlist.startYear ?? 0,
-            end: document?.playlist.endYear ?? 0
-        )
-        let link = shareLink?.url
         artworkTask = Task {
-            let image = await PlaylistImages.renderArtwork(artwork, headline: headline, link: link)
+            let image = await PlaylistImages.renderArtwork(artwork)
             if Task.isCancelled { return }
             artworkImage = image
         }

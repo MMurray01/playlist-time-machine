@@ -44,31 +44,25 @@ enum PlaylistImages {
     }
 
     @MainActor
-    static func renderArtwork(_ artwork: PlaylistArtwork, headline: String, link: String?) async -> UIImage {
+    static func renderArtwork(_ artwork: PlaylistArtwork) async -> UIImage {
         let covers = await loadCovers(artwork.covers, pixels: [:])
-        return drawArtwork(plan: artwork.plan, covers: covers, headline: headline, link: link, mark: artwork.mark)
+        return drawArtwork(plan: artwork.plan, covers: covers)
     }
 
-    /// Print-size collage. The title and playlist link are drawn on the image.
+    /// Print-size collage. Covers only, plus a small brand mark in the lower-right corner.
     @MainActor
-    static func renderPrintArtwork(_ artwork: PlaylistArtwork, headline: String, link: String?) async -> UIImage {
+    static func renderPrintArtwork(_ artwork: PlaylistArtwork) async -> UIImage {
         let plan = printPlan(artwork.plan)
         var pixels: [String: Int] = [:]
         for tile in plan.tiles {
             pixels[tile.key] = Int(tile.size.rounded(.up))
         }
         let covers = await loadCovers(artwork.covers, pixels: pixels)
-        return drawArtwork(plan: plan, covers: covers, headline: headline, link: link, mark: artwork.mark)
+        return drawArtwork(plan: plan, covers: covers)
     }
 
     @MainActor
-    private static func drawArtwork(
-        plan: CollagePlan,
-        covers: [String: LoadedCover],
-        headline: String,
-        link: String?,
-        mark: String
-    ) -> UIImage {
+    private static func drawArtwork(plan: CollagePlan, covers: [String: LoadedCover]) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
@@ -77,13 +71,10 @@ enum PlaylistImages {
             let ctx = context.cgContext
             UIColor(red: 246 / 255, green: 246 / 255, blue: 247 / 255, alpha: 1).setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: plan.width, height: plan.height))
-            let inset = 108 * max(1, plan.width / 1080)
-            let title = fitted(headline, maxWidth: plan.width - inset, size: plan.titleSize, weight: .semibold)
-            drawCentered(title.text, font: title.font, color: UIColor(red: 17 / 255, green: 17 / 255, blue: 19 / 255, alpha: 1), midY: plan.art.y / 2, canvasWidth: plan.width, maxWidth: plan.width - inset)
             for tile in plan.tiles {
                 drawTile(tile, title: covers[tile.key]?.title ?? "", image: covers[tile.key]?.image, in: ctx)
             }
-            drawFooter(mark: mark, link: link, plan: plan)
+            drawBrand(plan: plan)
         }
     }
 
@@ -277,24 +268,18 @@ enum PlaylistImages {
         }
     }
 
-    private static func drawFooter(mark: String, link: String?, plan: CollagePlan) {
+    /// Small corner credit. The size follows the canvas so a 3000px print stays legible.
+    private static func drawBrand(plan: CollagePlan) {
         let scale = max(1, plan.height / 1080)
+        let font = UIFont.systemFont(ofSize: 28 * scale, weight: .medium)
         let color = UIColor(red: 63 / 255, green: 63 / 255, blue: 70 / 255, alpha: 1)
-        let inset = 54 * scale
-        if let link, !link.isEmpty {
-            let markFont = UIFont.systemFont(ofSize: plan.markSize, weight: .medium)
-            let linkFont = UIFont.systemFont(ofSize: max(16 * scale, plan.markSize - 4 * scale), weight: .medium)
-            drawCentered(mark, font: markFont, color: color, midY: plan.height - 52 * scale, canvasWidth: plan.width, maxWidth: plan.width - inset * 2)
-            let fittedLink = fitted(link, maxWidth: plan.width - inset * 2, size: linkFont.pointSize, weight: .medium)
-            drawCentered(fittedLink.text, font: fittedLink.font, color: color, midY: plan.height - 24 * scale, canvasWidth: plan.width, maxWidth: plan.width - inset * 2)
-        } else {
-            let font = UIFont.systemFont(ofSize: plan.markSize, weight: .medium)
-            let textSize = (mark as NSString).size(withAttributes: [.font: font])
-            mark.draw(at: CGPoint(x: plan.width - inset - textSize.width, y: plan.height - 39 * scale - textSize.height / 2), withAttributes: [
-                .font: font,
-                .foregroundColor: color,
-            ])
-        }
+        let mark = "Playlist Time Machine"
+        let textSize = (mark as NSString).size(withAttributes: [.font: font])
+        let inset = 36 * scale
+        mark.draw(at: CGPoint(x: plan.width - inset - textSize.width, y: plan.height - inset - textSize.height), withAttributes: [
+            .font: font,
+            .foregroundColor: color,
+        ])
     }
 
     private static func drawCentered(_ text: String, font: UIFont, color: UIColor, midY: Double, canvasWidth: Double, maxWidth: Double) {
@@ -336,12 +321,6 @@ enum PlaylistImages {
             .map { String($0).uppercased() }
             .joined()
         return letters.isEmpty ? "1" : letters
-    }
-
-    static func headline(title: String, start: Int, end: Int) -> String {
-        let name = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        let shown = name.isEmpty ? "Playlist" : name
-        return "\(shown) · \(start)\u{2013}\(end)"
     }
 }
 

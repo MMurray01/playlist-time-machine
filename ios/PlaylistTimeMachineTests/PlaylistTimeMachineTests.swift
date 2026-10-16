@@ -60,6 +60,8 @@ final class PlaylistTimeMachineTests: XCTestCase {
             PlaylistImages.sizedArtwork(source, size: 3000),
             "https://is1-ssl.mzstatic.com/image/thumb/Music/a/3000x3000bb.jpg"
         )
+        XCTAssertEqual(YearWindow.digits(1985), "1985")
+        XCTAssertFalse(YearWindow.digits(1985).contains(","))
         XCTAssertEqual(YearWindow.cleanTitle("", graduationYear: 1990), "Class of 1990")
         XCTAssertEqual(YearWindow.cleanTitle("   ", graduationYear: 1990), "Class of 1990")
     }

@@ -3,6 +3,7 @@ import SwiftUI
 struct SongDetailView: View {
     @EnvironmentObject private var playback: PlaybackController
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     let hit: ApiHit
 
     var body: some View {
@@ -22,25 +23,23 @@ struct SongDetailView: View {
                         .foregroundColor(Theme.inkSoft)
                 }
 
-                if hit.previewURL != nil {
-                    Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause preview" : "Play 30-second preview") {
-                        Task { await playback.toggle(hit) }
+                HStack(alignment: .center, spacing: 10) {
+                    if hit.previewURL != nil {
+                        Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : "Play 30-sec preview") {
+                            Task { await playback.toggle(hit) }
+                        }
+                        .buttonStyle(SheetActionStyle())
+                    } else {
+                        Text("No preview")
+                            .font(.subheadline.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(Theme.inkSoft)
+                            .frame(maxWidth: .infinity, minHeight: 44)
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-                } else {
-                    Text("This song has no preview.")
-                        .font(.subheadline)
-                        .foregroundColor(Theme.inkSoft)
-                }
-
-                if let url = hit.appleURL {
-                    Link(destination: url) {
-                        Image("ListenOnAppleMusic")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 220)
+                    if let url = hit.appleURL {
+                        Button("Listen on Apple Music") { openURL(url) }
+                            .buttonStyle(SheetActionStyle())
                     }
-                    .accessibilityLabel("Listen on Apple Music")
                 }
 
                 if !playback.status.isEmpty {
@@ -50,7 +49,7 @@ struct SongDetailView: View {
                 }
 
                 Text(Copy.previewCourtesy)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundColor(Theme.inkSoft)
 
                 Button("Close") {
@@ -100,6 +99,23 @@ struct SongDetailView: View {
         .frame(height: 320)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityHidden(true)
+    }
+}
+
+private struct SheetActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 6)
+            .foregroundColor(Theme.onAccent)
+            .background(Theme.accent)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
 

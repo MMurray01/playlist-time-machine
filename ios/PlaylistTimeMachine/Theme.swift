@@ -18,7 +18,6 @@ enum Copy {
     static let previewCourtesy = "Song previews provided courtesy of iTunes."
     static let appleTrademark = "Apple and Apple Music are trademarks of Apple Inc., registered in the U.S. and other countries."
     static let productLine = "a product of Abeba Co"
-    static let contact = "legal@abeba.co"
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
