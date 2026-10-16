@@ -29,7 +29,10 @@ export async function generatePlaylistAction(
 export async function sharePlaylistAction(input: {
   graduationYear: number
   title: string
-}): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; id: string; url: string }
+  | { ok: false; error: string; status?: number; retryAfterSeconds?: number }
+> {
   return createSharedPlaylist({
     graduationYear: input.graduationYear,
     genres: [],

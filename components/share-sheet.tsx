@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react"
 import { trackEvent } from "@/lib/analytics"
+import { shareFailureNote } from "@/lib/share/failure"
 import {
   INSTAGRAM_TIP,
   TIKTOK_TIP,
@@ -172,8 +173,8 @@ export function ShareLaunch({
       setNote("")
       setOpen(true)
       void loadImage()
-    } catch {
-      setNote("Sharing did not finish. Try again.")
+    } catch (error) {
+      setNote(shareFailureNote(error, "Sharing did not finish. Try again."))
     } finally {
       setPending(false)
     }

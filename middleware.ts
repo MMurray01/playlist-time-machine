@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { isMissingRpcFunction } from "@/lib/playlist/errors"
 import { isShareId } from "@/lib/playlist/ids"
 
 const MISSING = `<!DOCTYPE html>
@@ -37,6 +38,14 @@ function missingPlaylist() {
   })
 }
 
+function anonHeaders(anonKey: string): HeadersInit {
+  return {
+    apikey: anonKey,
+    Authorization: `Bearer ${anonKey}`,
+    Accept: "application/json",
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const id = request.nextUrl.pathname.slice(3)
   if (!isShareId(id)) return missingPlaylist()
@@ -46,14 +55,28 @@ export async function middleware(request: NextRequest) {
   if (!supabaseUrl || !anonKey) return NextResponse.next()
 
   try {
+    const rpc = await fetch(`${supabaseUrl}/rest/v1/rpc/get_shared_playlist`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        ...anonHeaders(anonKey),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ slug: id }),
+    })
+
+    if (rpc.ok) {
+      const row = (await rpc.json()) as unknown
+      if (!row || typeof row !== "object") return missingPlaylist()
+      return NextResponse.next()
+    }
+
+    const body = (await rpc.json().catch(() => null)) as { code?: string; message?: string } | null
+    if (!isMissingRpcFunction(body)) return NextResponse.next()
+
     const response = await fetch(
       `${supabaseUrl}/rest/v1/shared_playlists?id=eq.${encodeURIComponent(id)}&select=id`,
-      {
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
-        },
-      },
+      { headers: anonHeaders(anonKey), cache: "no-store" },
     )
     if (!response.ok) return NextResponse.next()
     const rows = (await response.json()) as unknown
