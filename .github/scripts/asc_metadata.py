@@ -361,6 +361,15 @@ def set_review_notes(bearer: str, version: dict, failures: list[str]) -> None:
         fetched = call("GET", f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail", bearer)
         detail = fetched[1].get("data") if fetched else None
     attributes = {"notes": REVIEW_NOTES, "demoAccountRequired": False}
+    existing = (detail or {}).get("attributes") or {}
+    kept = []
+    for key in ("contactFirstName", "contactLastName", "contactEmail", "contactPhone"):
+        value = existing.get(key)
+        if value:
+            attributes[key] = value
+            kept.append(key)
+    if kept:
+        print("Keeping review contact fields: " + ", ".join(kept))
     if detail:
         patched = call(
             "PATCH",
