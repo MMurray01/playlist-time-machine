@@ -19,10 +19,6 @@ struct PlaylistView: View {
                             .font(.subheadline)
                             .foregroundColor(Theme.inkSoft)
                     }
-                    viewToggle
-                    Text(document.courtesy.isEmpty ? Copy.previewCourtesy : document.courtesy)
-                        .font(.caption)
-                        .foregroundColor(Theme.inkSoft)
 
                     LazyVStack(alignment: .leading, spacing: 28) {
                         ForEach(document.playlist.years) { chapter in
@@ -55,20 +51,16 @@ struct PlaylistView: View {
         .onChange(of: model.document?.playlist.hits.map(\.key) ?? []) { _ in
             playback.replace(songs: model.document?.playlist.hits ?? [])
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .safeAreaInset(edge: .bottom, spacing: 10) {
             if model.document != nil {
-                actionBar
+                playlistDock
             }
         }
     }
 
     @ViewBuilder
     private func artwork(_ document: PlaylistDocument) -> some View {
-        let caption = "Playlist artwork for Class of \(YearWindow.digits(document.playlist.graduationYear))"
-        VStack(alignment: .leading, spacing: 8) {
-            Text(caption)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(Theme.ink)
+        Group {
             if let image = model.artworkImage {
                 Button {
                     model.showCollage = true
@@ -79,7 +71,7 @@ struct PlaylistView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(caption)
+                .accessibilityLabel("Playlist artwork")
                 .accessibilityHint("Opens the artwork full screen")
             } else {
                 ZStack {
@@ -137,64 +129,96 @@ struct PlaylistView: View {
         }
     }
 
-    private var actionBar: some View {
+    private var playlistDock: some View {
         let canAct = !model.isWorking && !(model.document?.playlist.hits.isEmpty ?? true)
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(spacing: 8) {
             if let error = model.playlistError {
                 Text(error)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(Theme.dangerInk)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             } else if !model.status.isEmpty {
                 Text(model.status)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(Theme.inkSoft)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             if model.showMusicSettings {
                 Button("Open Settings") { model.openAppSettings() }
-                    .buttonStyle(SecondaryButtonStyle())
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .foregroundColor(Theme.ink)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            HStack(spacing: 10) {
-                Button("Save to Apple Music") {
+            HStack(spacing: 0) {
+                dockItem("Cover Flow", symbol: "square.stack.fill", selected: model.browse == .flow, enabled: true) {
+                    model.chooseBrowse(.flow)
+                }
+                dockItem("List View", symbol: "list.bullet", selected: model.browse == .list, enabled: true) {
+                    model.chooseBrowse(.list)
+                }
+                dockItem(
+                    "Save",
+                    symbol: "square.and.arrow.down",
+                    selected: false,
+                    enabled: canAct,
+                    accessibilityLabel: "Save to Apple Music"
+                ) {
                     Task { await model.save(playback: playback) }
                 }
-                .buttonStyle(BarButtonStyle(enabled: canAct))
-                .disabled(!canAct)
-                Button("Share") {
+                dockItem("Share", symbol: "square.and.arrow.up", selected: false, enabled: canAct) {
                     Task { await model.share() }
                 }
-                .buttonStyle(BarButtonStyle(enabled: canAct))
-                .disabled(!canAct)
             }
+            .padding(.vertical, 7)
+            .padding(.horizontal, 4)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().stroke(Theme.line, lineWidth: 0.5))
+            .shadow(color: Color.black.opacity(0.14), radius: 16, y: 6)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-        .background(Theme.paper)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
+        .padding(.bottom, 6)
     }
 
-    private var viewToggle: some View {
-        HStack(spacing: 8) {
-            browseButton("Cover Flow", selected: model.browse == .flow) { model.chooseBrowse(.flow) }
-            browseButton("List View", selected: model.browse == .list) { model.chooseBrowse(.list) }
-        }
-        .frame(maxWidth: 360)
-        .frame(maxWidth: .infinity, alignment: .center)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("How to browse songs")
-    }
-
-    private func browseButton(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .font(.subheadline.weight(.semibold))
+    private func dockItem(
+        _ title: String,
+        symbol: String,
+        selected: Bool,
+        enabled: Bool,
+        accessibilityLabel: String? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(height: 24)
+                Text(title)
+                    .font(.caption2.weight(selected ? .semibold : .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .foregroundColor(selected ? Theme.onAccent : Theme.ink)
-            .background(selected ? Theme.accent : Theme.surface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(Theme.line, lineWidth: selected ? 0 : 1))
+            .foregroundColor(selected ? Theme.accent : Theme.ink)
+            .opacity(enabled ? 1 : 0.38)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .disabled(!enabled)
+        .accessibilityLabel(accessibilityLabel ?? title)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     private func recipientCard(_ recipient: RecipientCopy, year: Int) -> some View {
@@ -233,25 +257,6 @@ struct PlaylistView: View {
         .background(Theme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.line, lineWidth: 1))
-    }
-}
-
-private struct BarButtonStyle: ButtonStyle {
-    var enabled: Bool = true
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.semibold))
-            .multilineTextAlignment(.center)
-            .lineLimit(2)
-            .minimumScaleFactor(0.8)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 6)
-            .foregroundColor(Theme.onAccent)
-            .background(enabled ? Theme.accent : Theme.accent.opacity(0.45))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
 

@@ -25,20 +25,20 @@ struct SongDetailView: View {
 
                 HStack(alignment: .center, spacing: 10) {
                     if hit.previewURL != nil {
-                        Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : "Play 30-sec preview") {
+                        Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : "Play :30 Second Preview") {
                             Task { await playback.toggle(hit) }
                         }
-                        .buttonStyle(SheetActionStyle())
+                        .buttonStyle(CompactButtonStyle())
                     } else {
                         Text("No preview")
                             .font(.subheadline.weight(.semibold))
                             .multilineTextAlignment(.center)
                             .foregroundColor(Theme.inkSoft)
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .frame(maxWidth: .infinity, minHeight: 36)
                     }
                     if let url = hit.appleURL {
                         Button("Listen on Apple Music") { openURL(url) }
-                            .buttonStyle(SheetActionStyle())
+                            .buttonStyle(CompactButtonStyle())
                     }
                 }
 
@@ -49,7 +49,7 @@ struct SongDetailView: View {
                 }
 
                 Text(Copy.previewCourtesy)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(Theme.inkSoft)
 
                 Button("Close") {
@@ -99,23 +99,6 @@ struct SongDetailView: View {
         .frame(height: 320)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityHidden(true)
-    }
-}
-
-private struct SheetActionStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.semibold))
-            .multilineTextAlignment(.center)
-            .lineLimit(2)
-            .minimumScaleFactor(0.8)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .padding(.vertical, 10)
-            .padding(.horizontal, 6)
-            .foregroundColor(Theme.onAccent)
-            .background(Theme.accent)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
 

@@ -17,7 +17,6 @@ enum Theme {
 enum Copy {
     static let previewCourtesy = "Song previews provided courtesy of iTunes."
     static let appleTrademark = "Apple and Apple Music are trademarks of Apple Inc., registered in the U.S. and other countries."
-    static let productLine = "a product of Abeba Co"
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
@@ -44,6 +43,23 @@ struct SecondaryButtonStyle: ButtonStyle {
             .foregroundColor(Theme.ink)
             .background(Theme.surface)
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.line, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+/// Shorter than the full-width build button, with the same 12-point corner radius.
+struct CompactButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .padding(.horizontal, 8)
+            .foregroundColor(Theme.onAccent)
+            .background(Theme.accent)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .opacity(configuration.isPressed ? 0.85 : 1)
     }

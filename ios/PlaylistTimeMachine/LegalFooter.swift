@@ -2,21 +2,21 @@ import SwiftUI
 
 struct LegalFooter: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 14) {
+        VStack(spacing: 6) {
+            Text(Copy.appleTrademark)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(Copy.previewCourtesy)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
                 Link("Privacy", destination: PlaylistAPI.privacyURL)
                 Link("Terms", destination: PlaylistAPI.termsURL)
             }
-            .font(.subheadline.weight(.semibold))
-            Text(Copy.productLine)
-                .font(.footnote)
-                .foregroundColor(Theme.inkSoft)
-            Text(Copy.appleTrademark)
-                .font(.caption2)
-                .foregroundColor(Theme.inkSoft)
-                .fixedSize(horizontal: false, vertical: true)
+            .foregroundColor(Theme.accent)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 8)
+        .font(.caption2)
+        .foregroundColor(Theme.inkSoft)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
     }
 }
