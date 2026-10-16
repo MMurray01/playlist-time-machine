@@ -1,7 +1,7 @@
 name: App Store metadata
 
 # Fills version 1.0 in App Store Connect and attaches the newest valid build
-# above 29. It does not submit for review. This file is not in the TestFlight
+# above 30. It does not submit for review. This file is not in the TestFlight
 # path filter, so editing it does not upload another build.
 
 on:

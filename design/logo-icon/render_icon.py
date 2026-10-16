@@ -6,8 +6,8 @@ source JPEG. The canvas is 1024x1024, full bleed, opaque, and square.
 iOS applies the rounded mask, so the artwork has no pre-rounded corners.
 Key shapes stay inside the center safe area.
 
-Oswald (condensed) and Fraunces Italic are SIL Open Font License.
-See OFL-Oswald.txt and OFL-Fraunces.txt.
+Oswald is a condensed sans (SIL Open Font License, see OFL-Oswald.txt).
+PLAYLIST is upright. TIME MACHINE is the same face, slanted.
 """
 
 from __future__ import annotations
@@ -29,7 +29,6 @@ SCALE = 3
 N = SIZE * SCALE
 
 NAVY = np.array([18, 12, 48], dtype=np.float32)
-CREAM = np.array([247, 242, 232], dtype=np.float32)
 INK = np.array([16, 10, 42], dtype=np.float32)
 
 
@@ -67,9 +66,27 @@ def ring(cx: float, cy: float, radius: float, width: float) -> np.ndarray:
     return np.clip(outer - inner, 0.0, 1.0).astype(np.float32)
 
 
+def _cover_image(base: np.ndarray, fill: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    src_a = np.clip(alpha, 0.0, 1.0).astype(np.float32)[..., None]
+    if base.shape[-1] == 3:
+        return base * (1.0 - src_a) + fill * src_a
+    dst_a = base[..., 3:4]
+    out_a = src_a + dst_a * (1.0 - src_a)
+    mixed = fill * src_a + base[..., :3] * dst_a * (1.0 - src_a)
+    out_rgb = np.divide(mixed, np.maximum(out_a, 1e-4))
+    return np.concatenate([np.clip(out_rgb, 0, 255), np.clip(out_a, 0, 1)], axis=-1)
+
+
 def over(base: np.ndarray, color: np.ndarray, alpha: np.ndarray) -> np.ndarray:
-    a = alpha[..., None]
-    return base * (1.0 - a) + color * a
+    src_a = np.clip(alpha, 0.0, 1.0).astype(np.float32)[..., None]
+    if base.shape[-1] == 3:
+        return base * (1.0 - src_a) + color * src_a
+    dst_rgb = base[..., :3]
+    dst_a = base[..., 3:4]
+    out_a = src_a + dst_a * (1.0 - src_a)
+    mixed = color * src_a + dst_rgb * dst_a * (1.0 - src_a)
+    out_rgb = np.divide(mixed, np.maximum(out_a, 1e-4))
+    return np.concatenate([np.clip(out_rgb, 0, 255), np.clip(out_a, 0, 1)], axis=-1)
 
 
 def blur_alpha(alpha: np.ndarray, radius: float) -> np.ndarray:
@@ -102,7 +119,7 @@ def disc(canvas: np.ndarray, cx: float, cy: float, radius: float, colors: dict) 
     canvas = over(canvas, colors["shadow"], shadow * 0.45)
     falloff = np.clip(radial(cx, cy, radius), 0.0, 1.0)
     fill = colors["vinyl_core"] * (1.0 - falloff[..., None]) + colors["vinyl_edge"] * falloff[..., None]
-    canvas = canvas * (1.0 - body[..., None]) + fill * body[..., None]
+    canvas = _cover_image(canvas, fill, body)
     for groove_r, tone in (
         (0.86, 0.55),
         (0.72, 0.28),
@@ -162,7 +179,7 @@ def clock(canvas: np.ndarray, cx: float, cy: float, radius: float, colors: dict)
     canvas = over(canvas, colors["shadow"], shadow * 0.38)
     falloff = np.clip(radial(cx - radius * 0.15, cy - radius * 0.2, radius * 1.15), 0.0, 1.0)
     face = colors["face_hi"] * (1.0 - falloff[..., None]) + colors["face_lo"] * falloff[..., None]
-    canvas = canvas * (1.0 - body[..., None]) + face * body[..., None]
+    canvas = _cover_image(canvas, face, body)
     rim_shade = np.clip(radial(cx, cy, radius) - 0.72, 0.0, 1.0) / 0.28
     canvas = over(canvas, colors["face_shade"], rim_shade * body * 0.55)
     canvas = over(canvas, colors["stroke"], ring(cx, cy, radius, 11 * SCALE))
@@ -225,23 +242,79 @@ def alpha_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
 
 
+def italicize(image: Image.Image, shear: float = 0.22) -> Image.Image:
+    """Slant an upright face to the right. Oswald has no italic cut."""
+    pad = int(abs(shear) * image.height) + 8
+    padded = Image.new("RGBA", (image.width + pad, image.height), (0, 0, 0, 0))
+    padded.paste(image, (0, 0), image)
+    # Output pixel (x, y) reads the source at x - shear * (height - y).
+    return padded.transform(
+        padded.size,
+        Image.Transform.AFFINE,
+        (1, shear, -shear * padded.height, 0, 1, 0),
+        resample=Image.Resampling.BICUBIC,
+    )
+
+
 def paste_text(
     canvas: np.ndarray,
     image: Image.Image,
     cx: float,
     ink_top: float,
-    shadow: np.ndarray,
     color: np.ndarray,
 ) -> np.ndarray:
-    x0, y0, x1, y1 = alpha_bbox(image)
+    x0, y0, _, _ = alpha_bbox(image)
+    _, _, x1, _ = alpha_bbox(image)
     x = int(cx - (x0 + x1) / 2.0)
     y = int(ink_top - y0)
     layer = Image.new("RGBA", (N, N), (0, 0, 0, 0))
     layer.paste(image, (x, y), image)
     alpha = np.asarray(layer.split()[-1]).astype(np.float32) / 255.0
-    shade = blur_alpha(shift(alpha, int(1 * SCALE), int(3 * SCALE)), 2.4 * SCALE)
-    canvas = over(canvas, shadow, shade * 0.22)
     return over(canvas, color, alpha)
+
+
+def center_lockup(foreground: np.ndarray) -> np.ndarray:
+    """Scale the mark and both lines together into the central 80 percent."""
+    alpha = foreground[..., 3]
+    ys, xs = np.where(alpha > 0.04)
+    y0, y1 = int(ys.min()), int(ys.max())
+    x0, x1 = int(xs.min()), int(xs.max())
+    crop = foreground[y0 : y1 + 1, x0 : x1 + 1]
+    height, width = crop.shape[:2]
+    limit = 0.74 * N
+    scale = min(limit / width, limit / height)
+    resized = Image.fromarray(
+        np.dstack(
+            [
+                np.clip(crop[..., :3], 0, 255).astype(np.uint8),
+                np.clip(crop[..., 3] * 255.0, 0, 255).astype(np.uint8),
+            ]
+        ),
+        "RGBA",
+    ).resize(
+        (max(1, int(round(width * scale))), max(1, int(round(height * scale)))),
+        Image.Resampling.LANCZOS,
+    )
+    canvas = Image.new("RGBA", (N, N), (0, 0, 0, 0))
+    canvas.paste(resized, ((N - resized.width) // 2, (N - resized.height) // 2), resized)
+    alpha = np.asarray(canvas)[..., 3]
+    ys, xs = np.where(alpha > 12)
+    left, top = int(xs.min() / SCALE), int(ys.min() / SCALE)
+    right, bottom = int(xs.max() / SCALE), int(ys.max() / SCALE)
+    print(
+        "centered",
+        (left, top, right, bottom),
+        "margins",
+        top,
+        SIZE - 1 - bottom,
+        left,
+        SIZE - 1 - right,
+    )
+    if left < 112 or top < 112 or right > 911 or bottom > 911:
+        raise SystemExit(f"lockup leaves the central 80 percent: {(left, top, right, bottom)}")
+    if abs(top - (SIZE - 1 - bottom)) > 4 or abs(left - (SIZE - 1 - right)) > 4:
+        raise SystemExit("lockup margins are uneven")
+    return np.asarray(canvas).astype(np.float32)
 
 
 def render(kind: str) -> Image.Image:
@@ -263,7 +336,6 @@ def render(kind: str) -> Image.Image:
             "stroke": INK,
             "highlight": np.array([255, 255, 255], dtype=np.float32),
             "text": INK,
-            "text_shadow": np.array([40, 32, 72], dtype=np.float32),
         }
     elif kind == "dark":
         colors = {
@@ -282,71 +354,59 @@ def render(kind: str) -> Image.Image:
             "face_shade": np.array([72, 64, 104], dtype=np.float32),
             "stroke": INK,
             "highlight": np.array([255, 255, 255], dtype=np.float32),
-            "text": CREAM,
-            "text_shadow": np.array([0, 0, 0], dtype=np.float32),
+            "text": np.array([255, 252, 246], dtype=np.float32),
         }
     else:
         colors = {
             "top": np.array([12, 12, 12], dtype=np.float32),
             "bottom": np.array([28, 28, 28], dtype=np.float32),
             "shadow": np.array([0, 0, 0], dtype=np.float32),
-            "vinyl_core": np.array([58, 58, 58], dtype=np.float32),
-            "vinyl_edge": np.array([10, 10, 10], dtype=np.float32),
-            "groove": np.array([168, 168, 168], dtype=np.float32),
+            "vinyl_core": np.array([72, 72, 72], dtype=np.float32),
+            "vinyl_edge": np.array([18, 18, 18], dtype=np.float32),
+            "groove": np.array([210, 210, 210], dtype=np.float32),
             "sheen": np.array([255, 255, 255], dtype=np.float32),
-            "label": np.array([236, 236, 236], dtype=np.float32),
-            "label_ring": np.array([16, 16, 16], dtype=np.float32),
-            "play": np.array([16, 16, 16], dtype=np.float32),
-            "face_hi": np.array([246, 246, 246], dtype=np.float32),
-            "face_lo": np.array([214, 214, 214], dtype=np.float32),
-            "face_shade": np.array([80, 80, 80], dtype=np.float32),
-            "stroke": np.array([14, 14, 14], dtype=np.float32),
+            "label": np.array([255, 255, 255], dtype=np.float32),
+            "label_ring": np.array([12, 12, 12], dtype=np.float32),
+            "play": np.array([12, 12, 12], dtype=np.float32),
+            "face_hi": np.array([255, 255, 255], dtype=np.float32),
+            "face_lo": np.array([232, 232, 232], dtype=np.float32),
+            "face_shade": np.array([90, 90, 90], dtype=np.float32),
+            "stroke": np.array([8, 8, 8], dtype=np.float32),
             "highlight": np.array([255, 255, 255], dtype=np.float32),
-            "text": np.array([242, 242, 242], dtype=np.float32),
-            "text_shadow": np.array([0, 0, 0], dtype=np.float32),
+            "text": np.array([255, 255, 255], dtype=np.float32),
         }
 
-    canvas = vertical_gradient(colors["top"], colors["bottom"])
-    canvas = canvas * (1.0 - vignette(0.22 if kind != "tinted" else 0.35)[..., None])
+    background = vertical_gradient(colors["top"], colors["bottom"])
+    background = background * (1.0 - vignette(0.22 if kind != "tinted" else 0.35)[..., None])
     glow = np.clip(1.0 - radial(430 * SCALE, 300 * SCALE, 340 * SCALE), 0.0, 1.0) ** 1.8
     lift = np.array([255, 252, 248], dtype=np.float32) if kind != "tinted" else np.array([80, 80, 80], dtype=np.float32)
-    canvas = over(canvas, lift, glow * (0.18 if kind == "light" else 0.10))
+    background = over(background, lift, glow * (0.18 if kind == "light" else 0.10))
 
     s = SCALE
-    # Clock overlaps the left of the record. The play label stays clear of the clock.
-    canvas = disc(canvas, 624 * s, 352 * s, 150 * s, colors)
-    canvas = clock(canvas, 398 * s, 304 * s, 146 * s, colors)
+    # Draw the lockup on a transparent layer, then scale it into the safe area.
+    # The play label stays clear of the clock.
+    foreground = np.zeros((N, N, 4), dtype=np.float32)
+    foreground = disc(foreground, 624 * s, 300 * s, 150 * s, colors)
+    foreground = clock(foreground, 398 * s, 252 * s, 146 * s, colors)
 
-    playlist_face, playlist_tracking = fit_face(
-        ROOT / "Oswald-Variable.ttf",
-        [700],
-        "PLAYLIST",
-        790 * s,
-        0.03,
-    )
-    # A slight horizontal squeeze keeps the italic line large enough to read at 60px.
-    time_squeeze = 0.84
-    time_face, time_tracking = fit_face(
-        ROOT / "Fraunces-Italic-Variable.ttf",
-        [48, 760, 0, 0],
-        "TIME MACHINE",
-        800 * s / time_squeeze,
-        0.012,
-    )
+    oswald = ROOT / "Oswald-Variable.ttf"
+    playlist_face, playlist_tracking = fit_face(oswald, [700], "PLAYLIST", 760 * s, 0.02)
+    time_face, time_tracking = fit_face(oswald, [640], "TIME MACHINE", 760 * s, 0.01)
     ink = tuple(int(channel) for channel in colors["text"])
     playlist = tracked_text("PLAYLIST", playlist_face, playlist_tracking, ink)
-    time_line = tracked_text("TIME MACHINE", time_face, time_tracking, ink)
-    time_line = time_line.resize(
-        (max(1, int(time_line.width * time_squeeze)), time_line.height),
-        Image.Resampling.LANCZOS,
-    )
+    time_line = italicize(tracked_text("TIME MACHINE", time_face, time_tracking, ink))
     _, py0, _, py1 = alpha_bbox(playlist)
-    _, ty0, _, ty1 = alpha_bbox(time_line)
-    playlist_top = 548 * s
-    time_top = playlist_top + (py1 - py0) + 30 * s
-    canvas = paste_text(canvas, playlist, 512 * s, playlist_top, colors["text_shadow"], colors["text"])
-    canvas = paste_text(canvas, time_line, 512 * s, time_top, colors["text_shadow"], colors["text"])
+    _, ty0, _, _ = alpha_bbox(time_line)
+    playlist_top = 500 * s
+    time_top = playlist_top + (py1 - py0) + 28 * s
+    foreground = paste_text(foreground, playlist, 512 * s, playlist_top, colors["text"])
+    foreground = paste_text(foreground, time_line, 512 * s, time_top, colors["text"])
+    if time_top + (alpha_bbox(time_line)[3] - ty0) >= N - 8:
+        raise SystemExit("TIME MACHINE was drawn off the canvas before scaling")
 
+    placed = center_lockup(foreground)
+    alpha = placed[..., 3:4] / 255.0
+    canvas = background * (1.0 - alpha) + placed[..., :3] * alpha
     image = Image.fromarray(np.clip(canvas, 0, 255).astype(np.uint8), "RGB")
     return image.resize((SIZE, SIZE), Image.Resampling.LANCZOS)
 
@@ -363,21 +423,12 @@ def save_rgb(image: Image.Image, path: Path) -> None:
 
 def assert_safe(path: Path) -> None:
     image = np.asarray(Image.open(path).convert("RGB")).astype(np.int16)
-    ink = image.mean(axis=2) < 96
+    ink = image.mean(axis=2) < 70
     ys, xs = np.where(ink)
-    bounds = (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max()))
-    print(path.name, "ink", bounds)
-    if bounds[0] < 96 or bounds[1] < 96 or bounds[2] > 927 or bounds[3] > 927:
-        raise SystemExit(f"{path.name} leaves the safe area: {bounds}")
-    radius = 210
-    outside = 0
-    for x, y in zip(xs[::8], ys[::8]):
-        cx = min(max(int(x), radius), SIZE - 1 - radius)
-        cy = min(max(int(y), radius), SIZE - 1 - radius)
-        if (int(x) - cx) ** 2 + (int(y) - cy) ** 2 > radius ** 2:
-            outside += 1
-    if outside:
-        raise SystemExit(f"{path.name} has {outside} ink samples outside the icon mask")
+    left, top, right, bottom = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+    print(path.name, "dark ink", (left, top, right, bottom))
+    if top < 102 or bottom > 921:
+        raise SystemExit(f"{path.name} text or mark is outside the safe area")
 
 
 def main() -> None:
@@ -388,6 +439,13 @@ def main() -> None:
     save_rgb(dark, ICON_DIR / "AppIcon-dark.png")
     save_rgb(tinted, ICON_DIR / "AppIcon-tinted.png")
     assert_safe(ICON_DIR / "AppIcon.png")
+    dark_px = np.asarray(dark).astype(np.int16)
+    text_band = dark_px[int(SIZE * 0.58) :]
+    bright = text_band.mean(axis=2) > 220
+    text_mean = float(text_band[bright].mean()) if bright.any() else 0.0
+    print("dark text mean", round(text_mean, 1))
+    if text_mean < 248:
+        raise SystemExit(f"dark text is not near-white: {text_mean}")
     for size, name in ((1024, "icon-1024.png"), (180, "icon-180.png"), (120, "icon-120.png"), (60, "icon-60.png")):
         preview = light if size == 1024 else light.resize((size, size), Image.Resampling.LANCZOS)
         save_rgb(preview, PREVIEW_DIR / name)

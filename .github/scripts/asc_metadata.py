@@ -3,7 +3,7 @@
 
 Does not create a review submission. Reads ASC_KEY_ID, ASC_ISSUER_ID, and
 ASC_PRIVATE_KEY. Optional ASC_SCREENSHOT_DIR is a folder of 6.9-inch PNGs.
-Optional ASC_WAIT_SECONDS is how long to wait for a TestFlight build above 29.
+Optional ASC_WAIT_SECONDS is how long to wait for a TestFlight build above 30.
 """
 
 import hashlib
@@ -20,7 +20,7 @@ from asc_upload import api, send_chunk, token  # noqa: E402
 
 APP_ID = "6823308079"
 VERSION = "1.0"
-MIN_BUILD = 29
+MIN_BUILD = 30
 NAME = "Playlist Time Machine"
 SUBTITLE = "Number one hits by year"
 COPYRIGHT = "2026 Abeba Co"
