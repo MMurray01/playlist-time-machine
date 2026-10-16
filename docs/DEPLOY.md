@@ -21,7 +21,11 @@ The site builds a playlist with Supabase alone. Saving and album art need the th
 | Name | When to set it |
 | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | Creating a share link. Server only. Never prefix it with `NEXT_PUBLIC_`. Without it, the playlist stays on the page and Share explains that the server key is missing. |
+| `UPSTASH_REDIS_REST_URL` | Shared counter for new share links. Server only. Pair it with `UPSTASH_REDIS_REST_TOKEN`. `KV_REST_API_URL` is used when the Upstash URL is unset. |
+| `UPSTASH_REDIS_REST_TOKEN` | Token for the Redis REST URL above. Server only. `KV_REST_API_TOKEN` is the fallback pair. |
 | `NEXT_PUBLIC_SITE_URL` | Optional absolute origin for a share link when the request has no host. Vercel sends `x-forwarded-host`, so leave this empty unless you want to force one origin. |
+
+`createSharedPlaylist` allows 10 new share links per IP per hour. `POST /api/share` and the website share action both call it, so they share one gate. Connect Upstash Redis from the Vercel Marketplace and set the REST URL and token so every server instance uses the same count. The API answers the 11th create with HTTP 429 and a `Retry-After` header. The website shows the same sentence. Until those variables are set, the count lives in the server process and does not hold across every Vercel instance.
 
 `NEXT_PUBLIC_*` values are inlined at build time. Redeploy after changing them.
 

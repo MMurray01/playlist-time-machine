@@ -140,9 +140,22 @@ export function parseShareBody(
 }
 
 export function shareErrorStatus(error: string): number {
+  if (error.startsWith("Too many share links")) return 429
   if (error.includes("server database key")) return 503
   if (error.includes("could not be saved")) return 500
   return 400
+}
+
+export function shareFailureHeaders(
+  status: number,
+  retryAfterSeconds?: number,
+): Record<string, string> | undefined {
+  if (status !== 429) return undefined
+  const seconds = Math.max(1, Math.ceil(retryAfterSeconds ?? 60 * 60))
+  return {
+    "Retry-After": String(seconds),
+    "Cache-Control": "no-store",
+  }
 }
 
 export interface PlaylistShareCopy {

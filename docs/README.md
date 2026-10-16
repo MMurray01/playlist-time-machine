@@ -11,6 +11,7 @@ Set these in the host, not in git. `.env.example` lists every name. Vercel steps
 | `NEXT_PUBLIC_SUPABASE_URL` | Chart library and shared playlist pages |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public reads |
 | `SUPABASE_SERVICE_ROLE_KEY` | Creating share links. Server only. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | 10 new share links per IP per hour, shared across server instances. Server only. |
 | `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Apple Music developer token. All three are required to save and to load album art. |
 | `NEXT_PUBLIC_SITE_URL` | Optional fallback for share links |
 

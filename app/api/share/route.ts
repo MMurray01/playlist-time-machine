@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { appleLibraryPlaylistDescription } from "@/lib/playlist/apple-library"
-import { parseShareBody, playlistShareCopy, shareErrorStatus } from "@/lib/playlist/ios-api"
+import { parseShareBody, playlistShareCopy, shareErrorStatus, shareFailureHeaders } from "@/lib/playlist/ios-api"
 import { graduationWindow } from "@/lib/playlist/window"
 import { createSharedPlaylist } from "@/lib/server/share"
 
@@ -31,7 +31,11 @@ export async function POST(request: Request) {
     title: parsed.title,
   })
   if (!created.ok) {
-    return NextResponse.json({ ok: false, error: created.error }, { status: shareErrorStatus(created.error) })
+    const status = created.status ?? shareErrorStatus(created.error)
+    return NextResponse.json(
+      { ok: false, error: created.error },
+      { status, headers: shareFailureHeaders(status, created.retryAfterSeconds) },
+    )
   }
 
   const window = graduationWindow(parsed.graduationYear)

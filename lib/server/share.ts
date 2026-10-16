@@ -12,7 +12,9 @@ import {
   graduationYearMessage,
   isValidGraduationYear,
 } from "@/lib/playlist/window"
+import { clientAddress, shareCreateLimitedMessage } from "@/lib/playlist/share-rate-limit"
 import { loadBuiltPlaylist } from "@/lib/server/chart"
+import { limitShareCreate } from "@/lib/server/share-rate-limit"
 import { createReadClient, createWriteClient } from "@/lib/server/supabase"
 
 export async function requestOrigin(): Promise<string> {
@@ -27,7 +29,10 @@ export async function createSharedPlaylist(input: {
   graduationYear: number
   genres: string[]
   title: string
-}): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; id: string; url: string }
+  | { ok: false; error: string; status?: number; retryAfterSeconds?: number }
+> {
   const limits = graduationYearLimits()
   if (!isValidGraduationYear(input.graduationYear, limits)) {
     return { ok: false, error: graduationYearMessage(input.graduationYear, limits) }
@@ -38,6 +43,16 @@ export async function createSharedPlaylist(input: {
     return {
       ok: false,
       error: "Sharing needs the server database key. The playlist is still on this page.",
+    }
+  }
+
+  const limited = await limitShareCreate(await shareCreateAddress())
+  if (!limited.allowed) {
+    return {
+      ok: false,
+      status: 429,
+      retryAfterSeconds: limited.retryAfterSeconds,
+      error: shareCreateLimitedMessage(limited.retryAfterSeconds),
     }
   }
 
@@ -67,6 +82,14 @@ export async function createSharedPlaylist(input: {
 
   const origin = await requestOrigin()
   return { ok: true, id, url: `${origin}/p/${id}` }
+}
+
+async function shareCreateAddress(): Promise<string> {
+  try {
+    return clientAddress(await headers())
+  } catch {
+    return "unknown"
+  }
 }
 
 export type SharedPlaylistPage =

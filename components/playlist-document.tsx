@@ -13,6 +13,7 @@ import { readResultsView, writeResultsView, type ResultsView } from "@/lib/playl
 import { downloadFilename, playlistCsv, playlistText } from "@/lib/playlist/export"
 import { collageArtworkUrl } from "@/lib/playlist/collage"
 import { hitKey } from "@/lib/playlist/hits"
+import { isShareFailure, shareFailure } from "@/lib/share/failure"
 import { pickStoryHits } from "@/lib/share/story"
 import type {
   BuiltPlaylist,
@@ -584,10 +585,14 @@ export function PlaylistDocument({
         graduationYear: playlist.graduationYear,
         title: name,
       })
-      if (!result.ok) return null
+      if (!result.ok) {
+        setError(result.error)
+        throw shareFailure(result.error)
+      }
       setShareUrl(result.url)
       return result.url
-    } catch {
+    } catch (error) {
+      if (isShareFailure(error)) throw error
       return null
     }
   }

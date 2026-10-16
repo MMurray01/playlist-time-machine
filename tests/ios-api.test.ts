@@ -14,7 +14,9 @@ import {
   parseShareBody,
   playlistShareCopy,
   shareErrorStatus,
+  shareFailureHeaders,
 } from "@/lib/playlist/ios-api"
+import { shareCreateLimitedMessage } from "@/lib/playlist/share-rate-limit"
 import type { ChartHit } from "@/lib/playlist/types"
 
 function hit(overrides: Partial<ChartHit> & Pick<ChartHit, "title" | "artist" | "year">): ChartHit {
@@ -89,6 +91,10 @@ describe("iOS API contract", () => {
     expect(shareErrorStatus("Sharing needs the server database key. The playlist is still on this page.")).toBe(503)
     expect(shareErrorStatus("The share link could not be saved. Try again.")).toBe(500)
     expect(shareErrorStatus("Enter the year you graduated high school.")).toBe(400)
+    const limited = shareCreateLimitedMessage(90)
+    expect(shareErrorStatus(limited)).toBe(429)
+    expect(shareFailureHeaders(429, 90)).toEqual({ "Retry-After": "90", "Cache-Control": "no-store" })
+    expect(shareFailureHeaders(400)).toBeUndefined()
   })
 
   it("builds playlist JSON with catalog matches, artwork, and the iTunes line", () => {
