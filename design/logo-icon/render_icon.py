@@ -7,7 +7,7 @@ iOS applies the rounded mask, so the artwork has no pre-rounded corners.
 Key shapes stay inside the center safe area.
 
 Oswald is a condensed sans (SIL Open Font License, see OFL-Oswald.txt).
-PLAYLIST is upright. TIME MACHINE is the same face, slanted.
+PLAYLIST and TIME MACHINE use the same upright weight. TIME MACHINE is smaller.
 """
 
 from __future__ import annotations
@@ -241,20 +241,6 @@ def alpha_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
 
 
-def italicize(image: Image.Image, shear: float = 0.22) -> Image.Image:
-    """Slant an upright face to the right. Oswald has no italic cut."""
-    pad = int(abs(shear) * image.height) + 8
-    padded = Image.new("RGBA", (image.width + pad, image.height), (0, 0, 0, 0))
-    padded.paste(image, (0, 0), image)
-    # Output pixel (x, y) reads the source at x - shear * (height - y).
-    return padded.transform(
-        padded.size,
-        Image.Transform.AFFINE,
-        (1, shear, -shear * padded.height, 0, 1, 0),
-        resample=Image.Resampling.BICUBIC,
-    )
-
-
 def paste_text(
     canvas: np.ndarray,
     image: Image.Image,
@@ -390,10 +376,10 @@ def render(kind: str) -> Image.Image:
 
     oswald = ROOT / "Oswald-Variable.ttf"
     playlist_face, playlist_tracking = fit_face(oswald, [700], "PLAYLIST", 760 * s, 0.02)
-    time_face, time_tracking = fit_face(oswald, [640], "TIME MACHINE", 760 * s, 0.01)
+    time_face, time_tracking = fit_face(oswald, [700], "TIME MACHINE", 760 * s, 0.02)
     ink = tuple(int(channel) for channel in colors["text"])
     playlist = tracked_text("PLAYLIST", playlist_face, playlist_tracking, ink)
-    time_line = italicize(tracked_text("TIME MACHINE", time_face, time_tracking, ink))
+    time_line = tracked_text("TIME MACHINE", time_face, time_tracking, ink)
     _, py0, _, py1 = alpha_bbox(playlist)
     _, ty0, _, _ = alpha_bbox(time_line)
     playlist_top = 500 * s
