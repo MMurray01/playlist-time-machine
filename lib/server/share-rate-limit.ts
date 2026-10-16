@@ -11,7 +11,6 @@ import {
 } from "@/lib/playlist/share-rate-limit"
 
 const memory = new MemoryShareLimiter()
-let warnedMissingStore = false
 
 /**
  * Atomic sliding window. Same rule as decideSlidingWindow: a hit older than
@@ -48,12 +47,9 @@ return {1, count + 1, 0}
 `
 
 export async function limitShareCreate(ip: string, now = Date.now()): Promise<ShareLimitDecision> {
-  const key = ip || "unknown"
   const remote = readUpstashRestEnv(process.env)
-  if (!remote) {
-    noteMissingSharedStore()
-    return memory.consume(key, now)
-  }
+  if (!remote) return { allowed: true }
+  const key = ip || "unknown"
   try {
     return await evalSlidingWindow(remote.url, remote.token, key, now)
   } catch {
@@ -89,10 +85,3 @@ async function evalSlidingWindow(url: string, token: string, ip: string, now: nu
   return decision
 }
 
-function noteMissingSharedStore(): void {
-  if (warnedMissingStore || process.env.VERCEL_ENV !== "production") return
-  warnedMissingStore = true
-  console.error(
-    "Share creation is limited inside this server process only. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN so the limit holds across instances.",
-  )
-}

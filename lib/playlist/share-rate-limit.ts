@@ -92,10 +92,12 @@ export class MemoryShareLimiter {
   }
 }
 
+/**
+ * The share limit runs only when both Upstash variables are set.
+ * A KV REST pair is not a substitute, and a missing pair means no limit.
+ */
 export function readUpstashRestEnv(env: Record<string, string | undefined>): UpstashRestAuth | null {
-  const upstash = restPair(env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN)
-  if (upstash) return upstash
-  return restPair(env.KV_REST_API_URL, env.KV_REST_API_TOKEN)
+  return restPair(env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN)
 }
 
 export function parseUpstashLimitResult(payload: unknown): ShareLimitDecision | null {

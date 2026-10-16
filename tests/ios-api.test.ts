@@ -89,6 +89,7 @@ describe("iOS API contract", () => {
     expect(abusivePlaylistTitle("Class of 1984")).toBe(false)
     expect(parseShareBody(null)).toMatchObject({ ok: false })
     expect(shareErrorStatus("Sharing needs the server database key. The playlist is still on this page.")).toBe(503)
+    expect(shareErrorStatus("Sharing needs the database connection. The playlist is still on this page.")).toBe(503)
     expect(shareErrorStatus("The share link could not be saved. Try again.")).toBe(500)
     expect(shareErrorStatus("Enter the year you graduated high school.")).toBe(400)
     const limited = shareCreateLimitedMessage(90)

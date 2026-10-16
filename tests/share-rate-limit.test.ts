@@ -52,7 +52,7 @@ describe("share create rate limit", () => {
     expect(clientAddress(headerList({}))).toBe("unknown")
   })
 
-  it("reads an Upstash or KV REST pair and a sliding-window reply", () => {
+  it("reads an Upstash REST pair only when both variables are set", () => {
     expect(readUpstashRestEnv({})).toBeNull()
     expect(
       readUpstashRestEnv({
@@ -62,11 +62,9 @@ describe("share create rate limit", () => {
         KV_REST_API_TOKEN: "kv",
       }),
     ).toEqual({ url: "https://example.upstash.io", token: "token" })
-    expect(readUpstashRestEnv({ KV_REST_API_URL: "https://kv.example/", KV_REST_API_TOKEN: "kv" })).toEqual({
-      url: "https://kv.example",
-      token: "kv",
-    })
+    expect(readUpstashRestEnv({ KV_REST_API_URL: "https://kv.example/", KV_REST_API_TOKEN: "kv" })).toBeNull()
     expect(readUpstashRestEnv({ UPSTASH_REDIS_REST_URL: "https://example.upstash.io" })).toBeNull()
+    expect(readUpstashRestEnv({ UPSTASH_REDIS_REST_TOKEN: "token" })).toBeNull()
     expect(parseUpstashLimitResult({ result: [1, 4, 0] })).toEqual({ allowed: true })
     expect(parseUpstashLimitResult({ result: [0, 10, 120] })).toEqual({
       allowed: false,
