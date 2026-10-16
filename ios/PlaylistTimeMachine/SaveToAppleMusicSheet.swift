@@ -5,7 +5,6 @@ struct SaveToAppleMusicSheet: View {
     @EnvironmentObject private var playback: PlaybackController
     @State private var snapshot = ""
     @State private var committed = false
-    @State private var dismissTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -35,7 +34,7 @@ struct SaveToAppleMusicSheet: View {
                     )
                     .textFieldStyle(.roundedBorder)
                     .submitLabel(.done)
-                    .disabled(model.appleMusicSavePhase == .saving || model.appleMusicSavePhase == .saved)
+                    .disabled(model.appleMusicSavePhase == .saving)
                     .onSubmit { model.commitTitle() }
                     .onChange(of: model.titleDraft) { value in
                         if value.count > 80 {
@@ -83,20 +82,11 @@ struct SaveToAppleMusicSheet: View {
             snapshot = model.titleDraft
             if model.appleMusicSavePhase != .saving {
                 model.appleMusicSavePhase = .editing
-                model.playlistError = nil
-                model.status = ""
             }
-        }
-        .onChange(of: model.appleMusicSavePhase) { phase in
-            scheduleDismiss(for: phase)
         }
         .onDisappear {
-            dismissTask?.cancel()
             if !committed {
                 model.titleDraft = snapshot
-            }
-            if model.appleMusicSavePhase != .saving {
-                model.appleMusicSavePhase = .editing
             }
         }
     }
@@ -105,39 +95,20 @@ struct SaveToAppleMusicSheet: View {
     private var saveStatus: some View {
         switch model.appleMusicSavePhase {
         case .saving:
-            HStack(alignment: .center, spacing: 12) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(Theme.ink)
-                Text("Saving to Apple Music, please wait")
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Theme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
+            Text("Saving to Apple Music.  Please close (X).")
+                .font(.body.weight(.semibold))
+                .foregroundColor(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
         case .saved:
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(Color(red: 0.09, green: 0.45, blue: 0.27))
-                    .accessibilityHidden(true)
-                Text("Saved to Apple Music, please close (X)")
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Theme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("Saved to Apple Music")
+                .font(.body.weight(.semibold))
+                .foregroundColor(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
         case .failed:
-            if let error = model.playlistError, !error.isEmpty {
-                Text(error)
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Theme.dangerInk)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("Apple Music could not save the playlist.")
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Theme.dangerInk)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(model.playlistError ?? "Apple Music could not save the playlist.")
+                .font(.body.weight(.semibold))
+                .foregroundColor(Theme.dangerInk)
+                .fixedSize(horizontal: false, vertical: true)
         case .editing:
             EmptyView()
         }
@@ -154,24 +125,10 @@ struct SaveToAppleMusicSheet: View {
     private func startSave() {
         committed = true
         model.commitTitle()
-        Task { @MainActor in
-            await model.save(playback: playback)
-        }
-    }
-
-    private func scheduleDismiss(for phase: AppleMusicSavePhase) {
-        dismissTask?.cancel()
-        dismissTask = nil
-        guard phase == .saved else { return }
-        dismissTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            guard !Task.isCancelled, model.appleMusicSavePhase == .saved else { return }
-            close()
-        }
+        model.beginAppleMusicSave(playback: playback)
     }
 
     private func close() {
-        dismissTask?.cancel()
         model.showAppleMusicSave = false
     }
 }

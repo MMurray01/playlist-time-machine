@@ -163,4 +163,34 @@ final class PlaylistTimeMachineTests: XCTestCase {
         XCTAssertNil(document.artwork)
         XCTAssertEqual(document.library.name, "Class of 1984 · Playlist Time Machine")
     }
+
+    func testDetachedLibrarySaveSurvivesCancellingTheSheetTask() async {
+        let started = expectation(description: "library save started")
+        let finished = expectation(description: "library save finished")
+        let result = SaveSurvival()
+        let sheet = Task {
+            result.job = Task.detached {
+                started.fulfill()
+                do {
+                    try await Task.sleep(nanoseconds: 200_000_000)
+                    result.survived = !Task.isCancelled
+                } catch {
+                    result.survived = false
+                }
+                finished.fulfill()
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        sheet.cancel()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertEqual(result.survived, true)
+    }
+}
+
+private final class SaveSurvival: @unchecked Sendable {
+    var job: Task<Void, Never>?
+    var survived = false
 }

@@ -51,5 +51,21 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(.light)
+        .overlay(alignment: .top) {
+            if let message = model.toastMessage {
+                Text(message)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(model.toastIsError ? Theme.dangerInk : Theme.ink)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 8)
+                    .padding(.horizontal, 24)
+                    .allowsHitTesting(false)
+                    .accessibilityAddTraits(.isStaticText)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: model.toastMessage)
     }
 }

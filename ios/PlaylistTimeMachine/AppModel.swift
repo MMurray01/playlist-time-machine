@@ -31,6 +31,8 @@ final class AppModel: ObservableObject {
     @Published var libraryDescription = ""
     @Published var savedNote = ""
     @Published var savedURL: URL?
+    @Published var toastMessage: String?
+    @Published var toastIsError = false
     @Published var shareDraft: ShareDraft?
     @Published var selectedHit: ApiHit?
 
@@ -38,6 +40,9 @@ final class AppModel: ObservableObject {
     private var shareTitle = ""
     private var artworkTask: Task<Void, Never>?
     private var playlistHits: [ApiHit] = []
+    private var appleMusicSaveTask: Task<Void, Never>?
+    private var savePlayback: PlaybackController?
+    private var toastTask: Task<Void, Never>?
 
     var typedYear: Int? { YearWindow.typedYear(yearText) }
 
@@ -162,29 +167,38 @@ final class AppModel: ObservableObject {
         status = ""
     }
 
-    func save(playback: PlaybackController) async {
+    func beginAppleMusicSave(playback: PlaybackController) {
         guard let document else { return }
+        guard appleMusicSaveTask == nil else { return }
         isWorking = true
         appleMusicSavePhase = .saving
         playlistError = nil
         showMusicSettings = false
         savedNote = ""
-        status = "Saving to Apple Music, please wait"
-        _ = await ensureShare()
-        let outcome = await LibrarySaver.save(
-            hits: playlistHits.isEmpty ? document.playlist.hits : playlistHits,
-            name: playlistName(),
-            description: libraryDescription.isEmpty ? document.library.description : libraryDescription
-        )
-        // MusicKit resumes off the main thread. Publish the result on the main actor
-        // or the sheet keeps the saving label after the playlist is already in the library.
-        await MainActor.run {
-            self.recordAppleMusicSave(outcome, playback: playback)
+        status = ""
+        savePlayback = playback
+        let hits = playlistHits.isEmpty ? document.playlist.hits : playlistHits
+        let name = playlistName()
+        let fallbackDescription = libraryDescription.isEmpty ? document.library.description : libraryDescription
+        // Detached from the sheet. Dismissing the view cancels tasks created in
+        // that view, and this write has to keep running after the X is tapped.
+        appleMusicSaveTask = Task.detached { [weak self] in
+            guard let self else { return }
+            let description = await self.prepareLibraryDescription(fallback: fallbackDescription)
+            let outcome = await LibrarySaver.save(hits: hits, name: name, description: description)
+            await self.recordAppleMusicSave(outcome)
         }
     }
 
-    private func recordAppleMusicSave(_ outcome: LibrarySaveOutcome, playback: PlaybackController) {
+    private func prepareLibraryDescription(fallback: String) async -> String {
+        _ = await ensureShare()
+        return libraryDescription.isEmpty ? fallback : libraryDescription
+    }
+
+    private func recordAppleMusicSave(_ outcome: LibrarySaveOutcome) {
         isWorking = false
+        appleMusicSaveTask = nil
+        let playback = savePlayback
         switch outcome {
         case .saved(let count, let requested, let url, let missing):
             savedURL = url
@@ -192,12 +206,13 @@ final class AppModel: ObservableObject {
             savedNote = "Saved \(count) of \(requested) songs to Apple Music.\(missingNote)"
             playlistError = nil
             showMusicSettings = false
-            status = "Saved to Apple Music, please close (X)"
+            status = ""
             appleMusicSavePhase = .saved
+            showToast("Saved to Apple Music", isError: false)
         case .needsOffer(let songID):
-            playback.offerSongID = songID
-            playback.offerMessage = .addMusic
-            playback.showOffer = true
+            playback?.offerSongID = songID
+            playback?.offerMessage = .addMusic
+            playback?.showOffer = true
             status = ""
             appleMusicSavePhase = .editing
         case .notAuthorized:
@@ -205,10 +220,23 @@ final class AppModel: ObservableObject {
             playlistError = "Apple Music access is off, so the playlist was not saved. 30-second previews still play here, and Listen on Apple Music still opens the song. Allow Apple Music for Playlist Time Machine in Settings to save it."
             status = ""
             appleMusicSavePhase = .failed
+            showToast("Apple Music could not save the playlist.", isError: true)
         case .failed(let message):
             playlistError = message
             status = ""
             appleMusicSavePhase = .failed
+            showToast(message, isError: true)
+        }
+    }
+
+    private func showToast(_ message: String, isError: Bool) {
+        toastMessage = message
+        toastIsError = isError
+        toastTask?.cancel()
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            guard !Task.isCancelled, self.toastMessage == message else { return }
+            self.toastMessage = nil
         }
     }
 
