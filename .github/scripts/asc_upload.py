@@ -109,6 +109,16 @@ def api(method: str, path: str, bearer: str, body=None):
                 time.sleep(wait)
                 continue
             raise SystemExit(f"App Store Connect {method} {path} failed (HTTP {error.code}). Apple said: {detail}")
+        except (TimeoutError, urllib.error.URLError) as error:
+            if attempt <= len(delays):
+                wait = delays[attempt - 1]
+                print(
+                    f"App Store Connect {method} {path} did not answer ({error}). "
+                    f"Retrying in {wait} seconds (attempt {attempt} of {len(delays) + 1})."
+                )
+                time.sleep(wait)
+                continue
+            raise SystemExit(f"App Store Connect {method} {path} did not answer ({error}).")
 
 
 def app_id(bearer: str) -> str:
