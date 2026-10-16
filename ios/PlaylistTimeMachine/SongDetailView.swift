@@ -30,7 +30,7 @@ struct SongDetailView: View {
                         .buttonStyle(CompactButtonStyle())
                     } else {
                         Text("No preview")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(size: 15, weight: .semibold))
                             .multilineTextAlignment(.center)
                             .foregroundColor(Theme.inkSoft)
                             .frame(maxWidth: .infinity, minHeight: 36)

@@ -1,0 +1,155 @@
+name: App Store metadata
+
+# Fills version 1.0 in App Store Connect and attaches the newest valid build
+# above 22. It does not submit for review. This file is not in the TestFlight
+# path filter, so editing it does not upload another build.
+
+on:
+  push:
+    branches:
+      - cursor/ios-build-15-feedback-d049
+    paths:
+      - "ios/**"
+      - ".github/scripts/asc_metadata.py"
+      - ".github/workflows/appstore.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: appstore-metadata-cursor-ios-build-15-feedback-d049
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Screenshots and metadata
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Require App Store Connect secrets
+        id: secrets
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          missing=()
+          [ -z "${ASC_ISSUER_ID}" ] && missing+=(ASC_ISSUER_ID)
+          [ -z "${ASC_KEY_ID}" ] && missing+=(ASC_KEY_ID)
+          [ -z "${ASC_PRIVATE_KEY}" ] && missing+=(ASC_PRIVATE_KEY)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=App Store metadata skipped::Missing repository secrets: ${missing[*]}."
+            exit 0
+          fi
+          echo "present=true" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.present == 'true'
+
+      - name: Select Xcode 26
+        if: steps.secrets.outputs.present == 'true'
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        if: steps.secrets.outputs.present == 'true'
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        if: steps.secrets.outputs.present == 'true'
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Capture 6.9-inch screenshots
+        id: shots
+        if: steps.secrets.outputs.present == 'true'
+        continue-on-error: true
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          import json
+          import subprocess
+          raw = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"])
+          devices = json.loads(raw)["devices"]
+          preferred = ("iPhone 16 Pro Max", "iPhone 17 Pro Max", "iPhone 15 Pro Max", "iPhone 14 Pro Max")
+          found = []
+          for runtime, entries in devices.items():
+              if "iOS" not in runtime:
+                  continue
+              for device in entries:
+                  if device.get("isAvailable", True) and device.get("name") in preferred:
+                      found.append((runtime, preferred.index(device["name"]), device["udid"], device["name"]))
+          if not found:
+              raise SystemExit("No iPhone Pro Max simulator is installed.")
+          found.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+          with open("/tmp/ptm-simulators.txt", "w") as handle:
+              for _runtime, _index, udid, name in found:
+                  handle.write(f"{udid}\t{name}\n")
+          PY
+          mapfile -t CANDIDATES < /tmp/ptm-simulators.txt
+          accepted="1320x2868 1290x2796 1260x2736"
+          chosen=""
+          for row in "${CANDIDATES[@]}"; do
+            udid="${row%%$'\t'*}"
+            name="${row#*$'\t'}"
+            echo "Probing ${name} (${udid})"
+            xcrun simctl boot "${udid}" || true
+            xcrun simctl bootstatus "${udid}" -b
+            xcrun simctl io "${udid}" screenshot "${RUNNER_TEMP}/probe.png"
+            size="$(sips -g pixelWidth -g pixelHeight "${RUNNER_TEMP}/probe.png" | awk '/pixelWidth/ {w=$2} /pixelHeight/ {h=$2} END {print w "x" h}')"
+            echo "${name} screenshot is ${size}"
+            if [[ " ${accepted} " == *" ${size} "* ]]; then
+              chosen="${udid}"
+              echo "Using ${name}"
+              break
+            fi
+            xcrun simctl shutdown "${udid}" || true
+          done
+          if [ -z "${chosen}" ]; then
+            echo "No Pro Max simulator produced a 6.9-inch screenshot."
+            exit 1
+          fi
+          xcrun simctl status_bar "${chosen}" override \
+            --time "9:41" \
+            --batteryState charged \
+            --batteryLevel 100 \
+            --wifiBars 3 \
+            --cellularMode active \
+            --cellularBars 4
+          mkdir -p "${RUNNER_TEMP}/shots"
+          xcodebuild test \
+            -project PlaylistTimeMachine.xcodeproj \
+            -scheme PlaylistTimeMachine \
+            -destination "platform=iOS Simulator,id=${chosen}" \
+            -only-testing:PlaylistTimeMachineUITests/ScreenshotTests/testStoreScreenshots \
+            CODE_SIGNING_ALLOWED=NO
+          cp /tmp/ptm-screenshots/*.png "${RUNNER_TEMP}/shots/"
+          ls -la "${RUNNER_TEMP}/shots"
+
+      - name: Upload screenshot files
+        if: steps.secrets.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: warn
+
+      - name: Prepare version 1.0 metadata
+        if: steps.secrets.outputs.present == 'true'
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_SCREENSHOT_DIR: ${{ runner.temp }}/shots
+          ASC_WAIT_SECONDS: "2700"
+          ASC_RESULT_PATH: ${{ runner.temp }}/asc-metadata-result.json
+        run: python3 -u .github/scripts/asc_metadata.py
+
+      - name: Upload metadata result
+        if: always() && steps.secrets.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-metadata-result
+          path: ${{ runner.temp }}/asc-metadata-result.json
+          if-no-files-found: warn

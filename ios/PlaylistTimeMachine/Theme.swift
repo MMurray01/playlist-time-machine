@@ -49,15 +49,16 @@ struct SecondaryButtonStyle: ButtonStyle {
 }
 
 /// Shorter than the full-width build button, with the same 12-point corner radius.
+/// Both labels use one size and weight. The longer title must not shrink on its own.
 struct CompactButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.subheadline.weight(.semibold))
+            .font(.system(size: 15, weight: .semibold))
             .multilineTextAlignment(.center)
             .lineLimit(1)
-            .minimumScaleFactor(0.7)
+            .allowsTightening(true)
             .frame(maxWidth: .infinity, minHeight: 36)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 4)
             .foregroundColor(Theme.onAccent)
             .background(Theme.accent)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
