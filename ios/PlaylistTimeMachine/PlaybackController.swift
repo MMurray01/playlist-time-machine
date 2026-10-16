@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import MusicKit
 import SwiftUI
+import UIKit
 
 @MainActor
 final class PlaybackController: ObservableObject {
@@ -40,7 +41,7 @@ final class PlaybackController: ObservableObject {
         await play(hit)
     }
 
-    /// In-app playback is the iTunes preview only. The full song opens in the Music app.
+    /// In-app playback is the iTunes preview only.
     func play(_ hit: ApiHit) async {
         stopPreview()
         player.pause()
@@ -91,6 +92,50 @@ final class PlaybackController: ObservableObject {
         let next = index + delta
         guard songs.indices.contains(next) else { return }
         await play(songs[next])
+    }
+
+    /// Starts the song in Apple Music when the user already allows it and subscribes.
+    /// A link alone does not start playback.
+    func listenInAppleMusic(_ hit: ApiHit) async {
+        stop()
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if MusicAuthorization.currentStatus == .authorized,
+           let subscription = try? await MusicSubscription.current,
+           subscription.canPlayCatalogContent,
+           let song = await catalogSong(for: hit) {
+            do {
+                let system = SystemMusicPlayer.shared
+                system.queue = SystemMusicPlayer.Queue(for: [song], startingAt: song)
+                try await system.play()
+                await open(URL(string: "music://"))
+                status = "Playing in Apple Music."
+                return
+            } catch {
+                status = ""
+            }
+        }
+        guard let url = hit.appleURL else {
+            status = "This song has no Apple Music link."
+            return
+        }
+        await open(url)
+        status = "Opened in Apple Music. Tap play to start the song."
+    }
+
+    private func catalogSong(for hit: ApiHit) async -> Song? {
+        if let id = hit.catalog?.catalogId, let song = await CatalogMatch.song(id: id) {
+            return song
+        }
+        return await CatalogMatch.search(title: hit.title, artist: hit.artist)
+    }
+
+    private func open(_ url: URL?) async {
+        guard let url else { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            UIApplication.shared.open(url, options: [:]) { _ in
+                continuation.resume()
+            }
+        }
     }
 
     private func startPreview(_ url: URL) {

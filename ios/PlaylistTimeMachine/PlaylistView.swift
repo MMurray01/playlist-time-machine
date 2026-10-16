@@ -13,6 +13,10 @@ struct PlaylistView: View {
                     }
 
                     artwork(document)
+                    Text("Touch image to save or share")
+                        .font(.caption2)
+                        .foregroundColor(Theme.inkSoft)
+                        .frame(maxWidth: .infinity, alignment: .center)
                     actions(document)
                     if let message = document.filterMessage {
                         Text(message)
@@ -56,6 +60,9 @@ struct PlaylistView: View {
                 playlistDock
             }
         }
+        .sheet(isPresented: $model.showAppleMusicSave) {
+            SaveToAppleMusicSheet()
+        }
     }
 
     @ViewBuilder
@@ -94,37 +101,20 @@ struct PlaylistView: View {
 
     @ViewBuilder
     private func actions(_ document: PlaylistDocument) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if document.recipient == nil {
-                Text("Name your Playlist")
-                    .font(.subheadline.weight(.semibold))
-                TextField(
-                    "",
-                    text: $model.titleDraft,
-                    prompt: Text(document.playlist.title).foregroundColor(Theme.placeholder)
-                )
-                .textFieldStyle(.roundedBorder)
-                .submitLabel(.done)
-                .onSubmit { model.commitTitle() }
-                .onChange(of: model.titleDraft) { value in
-                    if value.count > 80 {
-                        model.titleDraft = String(value.prefix(80))
-                        return
-                    }
-                    model.refreshArtwork()
+        if !model.savedNote.isEmpty || model.savedURL != nil {
+            VStack(alignment: .leading, spacing: 12) {
+                if !model.savedNote.isEmpty {
+                    Text(model.savedNote)
+                        .font(.subheadline)
+                        .foregroundColor(Theme.ink)
+                    Text(document.library.coverTip)
+                        .font(.footnote)
+                        .foregroundColor(Theme.inkSoft)
                 }
-            }
-            if !model.savedNote.isEmpty {
-                Text(model.savedNote)
-                    .font(.subheadline)
-                    .foregroundColor(Theme.ink)
-                Text(document.library.coverTip)
-                    .font(.footnote)
-                    .foregroundColor(Theme.inkSoft)
-            }
-            if let savedURL = model.savedURL {
-                Link("Open the saved playlist", destination: savedURL)
-                    .font(.subheadline.weight(.semibold))
+                if let savedURL = model.savedURL {
+                    Link("Open the saved playlist", destination: savedURL)
+                        .font(.subheadline.weight(.semibold))
+                }
             }
         }
     }
@@ -169,13 +159,13 @@ struct PlaylistView: View {
                     model.chooseBrowse(.list)
                 }
                 dockItem(
-                    "Save",
-                    symbol: "square.and.arrow.down",
+                    "Apple Music",
+                    symbol: "applelogo",
                     selected: false,
                     enabled: canAct,
                     accessibilityLabel: "Save to Apple Music"
                 ) {
-                    Task { await model.save(playback: playback) }
+                    model.showAppleMusicSave = true
                 }
                 dockItem("Share", symbol: "square.and.arrow.up", selected: false, enabled: canAct) {
                     Task { await model.share() }
@@ -205,9 +195,9 @@ struct PlaylistView: View {
                     .font(.system(size: 20, weight: .medium))
                     .frame(height: 24)
                 Text(title)
-                    .font(.caption2.weight(selected ? .semibold : .medium))
+                    .font(.system(size: 9, weight: selected ? .semibold : .medium))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
             .foregroundColor(selected ? Theme.accent : Theme.ink)

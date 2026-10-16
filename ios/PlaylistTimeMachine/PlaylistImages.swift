@@ -44,25 +44,30 @@ enum PlaylistImages {
     }
 
     @MainActor
-    static func renderArtwork(_ artwork: PlaylistArtwork) async -> UIImage {
+    static func renderArtwork(_ artwork: PlaylistArtwork, startYear: Int, endYear: Int) async -> UIImage {
         let covers = await loadCovers(artwork.covers, pixels: [:])
-        return drawArtwork(plan: artwork.plan, covers: covers)
+        return drawArtwork(plan: artwork.plan, covers: covers, range: yearRangeLabel(start: startYear, end: endYear))
     }
 
-    /// Print-size collage. Covers only, plus a small brand mark in the lower-right corner.
+    /// Print-size collage. Covers, the year range at the top, and a small brand mark.
     @MainActor
-    static func renderPrintArtwork(_ artwork: PlaylistArtwork) async -> UIImage {
+    static func renderPrintArtwork(_ artwork: PlaylistArtwork, startYear: Int, endYear: Int) async -> UIImage {
         let plan = printPlan(artwork.plan)
         var pixels: [String: Int] = [:]
         for tile in plan.tiles {
             pixels[tile.key] = Int(tile.size.rounded(.up))
         }
         let covers = await loadCovers(artwork.covers, pixels: pixels)
-        return drawArtwork(plan: plan, covers: covers)
+        return drawArtwork(plan: plan, covers: covers, range: yearRangeLabel(start: startYear, end: endYear))
+    }
+
+    /// "1985 - 1995", never with a thousands separator.
+    static func yearRangeLabel(start: Int, end: Int) -> String {
+        "\(YearWindow.digits(start)) - \(YearWindow.digits(end))"
     }
 
     @MainActor
-    private static func drawArtwork(plan: CollagePlan, covers: [String: LoadedCover]) -> UIImage {
+    private static func drawArtwork(plan: CollagePlan, covers: [String: LoadedCover], range: String) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
@@ -74,6 +79,7 @@ enum PlaylistImages {
             for tile in plan.tiles {
                 drawTile(tile, title: covers[tile.key]?.title ?? "", image: covers[tile.key]?.image, in: ctx)
             }
+            drawYearRange(range, plan: plan)
             drawBrand(plan: plan)
         }
     }
@@ -266,6 +272,20 @@ enum PlaylistImages {
                 .foregroundColor: color,
             ])
         }
+    }
+
+    /// Centered in the title band above the covers. The size follows the canvas.
+    private static func drawYearRange(_ text: String, plan: CollagePlan) {
+        let font = UIFont.systemFont(ofSize: max(22, plan.titleSize), weight: .bold)
+        let color = UIColor(red: 17 / 255, green: 17 / 255, blue: 19 / 255, alpha: 1)
+        let bounds = (text as NSString).size(withAttributes: [.font: font])
+        let band = max(bounds.height + 8, plan.art.y)
+        let x = (plan.width - bounds.width) / 2
+        let y = max(0, (band - bounds.height) / 2)
+        text.draw(at: CGPoint(x: x, y: y), withAttributes: [
+            .font: font,
+            .foregroundColor: color,
+        ])
     }
 
     /// Small corner credit. The size follows the canvas so a 3000px print stays legible.

@@ -3,7 +3,6 @@ import SwiftUI
 struct SongDetailView: View {
     @EnvironmentObject private var playback: PlaybackController
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     let hit: ApiHit
 
     var body: some View {
@@ -25,7 +24,7 @@ struct SongDetailView: View {
 
                 HStack(alignment: .center, spacing: 10) {
                     if hit.previewURL != nil {
-                        Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : "Play :30 Second Preview") {
+                        Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : ":30 Preview") {
                             Task { await playback.toggle(hit) }
                         }
                         .buttonStyle(CompactButtonStyle())
@@ -36,9 +35,11 @@ struct SongDetailView: View {
                             .foregroundColor(Theme.inkSoft)
                             .frame(maxWidth: .infinity, minHeight: 36)
                     }
-                    if let url = hit.appleURL {
-                        Button("Listen on Apple Music") { openURL(url) }
-                            .buttonStyle(CompactButtonStyle())
+                    if hit.appleURL != nil {
+                        Button("Listen on Apple Music") {
+                            Task { await playback.listenInAppleMusic(hit) }
+                        }
+                        .buttonStyle(CompactButtonStyle())
                     }
                 }
 

@@ -64,6 +64,8 @@ final class PlaylistTimeMachineTests: XCTestCase {
         XCTAssertFalse(YearWindow.digits(1985).contains(","))
         XCTAssertEqual(YearWindow.cleanTitle("", graduationYear: 1990), "Class of 1990")
         XCTAssertEqual(YearWindow.cleanTitle("   ", graduationYear: 1990), "Class of 1990")
+        XCTAssertEqual(PlaylistImages.yearRangeLabel(start: 1985, end: 1995), "1985 - 1995")
+        XCTAssertFalse(PlaylistImages.yearRangeLabel(start: 1985, end: 1995).contains(","))
     }
 
     func testStoryPicksSpreadAcrossYears() {

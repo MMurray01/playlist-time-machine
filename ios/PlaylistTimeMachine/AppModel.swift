@@ -18,6 +18,7 @@ final class AppModel: ObservableObject {
     @Published var isWorking = false
     @Published var artworkImage: UIImage?
     @Published var showCollage = false
+    @Published var showAppleMusicSave = false
     @Published var shareLink: ShareLink?
     @Published var libraryDescription = ""
     @Published var savedNote = ""
@@ -119,9 +120,11 @@ final class AppModel: ObservableObject {
     }
 
     func renderPrintArtwork() async -> UIImage? {
-        guard let artwork = document?.artwork else { return nil }
+        guard let document, let artwork = document.artwork else { return nil }
+        let startYear = document.playlist.startYear
+        let endYear = document.playlist.endYear
         _ = await ensureShare()
-        return await PlaylistImages.renderPrintArtwork(artwork)
+        return await PlaylistImages.renderPrintArtwork(artwork, startYear: startYear, endYear: endYear)
     }
 
     func openAppSettings() {
@@ -193,6 +196,7 @@ final class AppModel: ObservableObject {
         playlistHits = []
         artworkImage = nil
         showCollage = false
+        showAppleMusicSave = false
         shareLink = nil
         playlistError = nil
         showMusicSettings = false
@@ -271,12 +275,14 @@ final class AppModel: ObservableObject {
 
     private func renderArtwork() {
         artworkTask?.cancel()
-        guard let artwork = document?.artwork else {
+        guard let artwork = document?.artwork, let playlist = document?.playlist else {
             artworkImage = nil
             return
         }
+        let startYear = playlist.startYear
+        let endYear = playlist.endYear
         artworkTask = Task {
-            let image = await PlaylistImages.renderArtwork(artwork)
+            let image = await PlaylistImages.renderArtwork(artwork, startYear: startYear, endYear: endYear)
             if Task.isCancelled { return }
             artworkImage = image
         }
