@@ -43,6 +43,7 @@ final class AppModel: ObservableObject {
     private var appleMusicSaveTask: Task<Void, Never>?
     private var savePlayback: PlaybackController?
     private var toastTask: Task<Void, Never>?
+    private var savedPromptTask: Task<Void, Never>?
 
     var typedYear: Int? { YearWindow.typedYear(yearText) }
 
@@ -114,6 +115,7 @@ final class AppModel: ObservableObject {
     }
 
     func chooseBrowse(_ mode: BrowseMode) {
+        clearTransientNotices()
         browse = mode
         UserDefaults.standard.set(mode.rawValue, forKey: "ptm-results-view")
     }
@@ -174,7 +176,7 @@ final class AppModel: ObservableObject {
         appleMusicSavePhase = .saving
         playlistError = nil
         showMusicSettings = false
-        savedNote = ""
+        dismissSavedPrompt()
         status = ""
         savePlayback = playback
         let hits = playlistHits.isEmpty ? document.playlist.hits : playlistHits
@@ -209,6 +211,7 @@ final class AppModel: ObservableObject {
             status = ""
             appleMusicSavePhase = .saved
             showToast("Saved to Apple Music", isError: false)
+            scheduleSavedPromptDismissal()
         case .needsOffer(let songID):
             playback?.offerSongID = songID
             playback?.offerMessage = .addMusic
@@ -234,10 +237,46 @@ final class AppModel: ObservableObject {
         toastIsError = isError
         toastTask?.cancel()
         toastTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
             guard !Task.isCancelled, self.toastMessage == message else { return }
             self.toastMessage = nil
         }
+    }
+
+    func dismissToast() {
+        toastTask?.cancel()
+        toastTask = nil
+        toastMessage = nil
+    }
+
+    func dismissSavedPrompt() {
+        savedPromptTask?.cancel()
+        savedPromptTask = nil
+        savedNote = ""
+        savedURL = nil
+    }
+
+    func openSavedPlaylist() {
+        let url = savedURL
+        dismissSavedPrompt()
+        if let url {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    private func scheduleSavedPromptDismissal() {
+        savedPromptTask?.cancel()
+        savedPromptTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+            savedNote = ""
+            savedURL = nil
+        }
+    }
+
+    private func clearTransientNotices() {
+        dismissSavedPrompt()
+        dismissToast()
     }
 
     func backToYear() {
@@ -252,7 +291,7 @@ final class AppModel: ObservableObject {
         showMusicSettings = false
         appleMusicSavePhase = .editing
         status = ""
-        savedNote = ""
+        clearTransientNotices()
         selectedHit = nil
     }
 
@@ -262,6 +301,7 @@ final class AppModel: ObservableObject {
         isBuilding = true
         homeError = nil
         playlistError = nil
+        clearTransientNotices()
         defer { if ticket == generation { isBuilding = false } }
         do {
             let loaded = try await PlaylistAPI.sharedPlaylist(id: id)
@@ -280,6 +320,7 @@ final class AppModel: ObservableObject {
         if document == nil { isBuilding = true } else { isWorking = true }
         homeError = nil
         playlistError = nil
+        clearTransientNotices()
         defer {
             if ticket == generation {
                 isBuilding = false
@@ -321,6 +362,7 @@ final class AppModel: ObservableObject {
         }
         playlistHits = loaded.playlist.hits
         status = loaded.filterMessage ?? ""
+        clearTransientNotices()
         renderArtwork()
     }
 

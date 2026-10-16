@@ -62,8 +62,15 @@ struct RootView: View {
                     .background(.regularMaterial, in: Capsule())
                     .padding(.top, 8)
                     .padding(.horizontal, 24)
-                    .allowsHitTesting(false)
-                    .accessibilityAddTraits(.isStaticText)
+                    .contentShape(Capsule())
+                    .onTapGesture { model.dismissToast() }
+                    .gesture(
+                        DragGesture(minimumDistance: 12).onEnded { _ in
+                            model.dismissToast()
+                        }
+                    )
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Dismiss")
             }
         }
         .animation(.easeInOut(duration: 0.2), value: model.toastMessage)

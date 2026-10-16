@@ -104,18 +104,37 @@ struct PlaylistView: View {
         if !model.savedNote.isEmpty || model.savedURL != nil {
             VStack(alignment: .leading, spacing: 12) {
                 if !model.savedNote.isEmpty {
-                    Text(model.savedNote)
-                        .font(.subheadline)
-                        .foregroundColor(Theme.ink)
-                    Text(document.library.coverTip)
-                        .font(.footnote)
-                        .foregroundColor(Theme.inkSoft)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(model.savedNote)
+                            .font(.subheadline)
+                            .foregroundColor(Theme.ink)
+                        Text(document.library.coverTip)
+                            .font(.footnote)
+                            .foregroundColor(Theme.inkSoft)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.dismissSavedPrompt() }
                 }
-                if let savedURL = model.savedURL {
-                    Link("Open the saved playlist", destination: savedURL)
-                        .font(.subheadline.weight(.semibold))
+                if model.savedURL != nil {
+                    Button("Open the saved playlist") {
+                        model.openSavedPlaylist()
+                    }
+                    .font(.subheadline.weight(.semibold))
                 }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24).onEnded { value in
+                    if abs(value.translation.width) > 40 || abs(value.translation.height) > 40 {
+                        model.dismissSavedPrompt()
+                    }
+                }
+            )
+            .accessibilityAction(named: "Dismiss") { model.dismissSavedPrompt() }
         }
     }
 
