@@ -4,11 +4,6 @@ name: App Store Connect status
 # Does not archive or upload. Secrets: ASC_ISSUER_ID, ASC_KEY_ID, ASC_PRIVATE_KEY.
 
 on:
-  push:
-    branches:
-      - cursor/ios-build-15-feedback-d049
-    paths:
-      - ".github/workflows/asc-status.yml"
   workflow_dispatch:
 
 jobs:
@@ -23,22 +18,4 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
-          ASC_BUILD: "16"
-          ASC_WAIT_SECONDS: "0"
-        run: |
-          set +e
-          for attempt in $(seq 1 40); do
-            output="$(python3 -u .github/scripts/asc_status.py 2>&1)"
-            code=$?
-            printf '%s\n' "$output"
-            if printf '%s\n' "$output" | grep -q "processingState: VALID"; then
-              exit 0
-            fi
-            if printf '%s\n' "$output" | grep -Eq "processingState: (FAILED|INVALID)"; then
-              exit 1
-            fi
-            echo "Build 16 is not in a final state yet (script exit ${code}). Attempt ${attempt} of 40."
-            sleep 60
-          done
-          echo "Build 16 did not reach VALID, FAILED, or INVALID."
-          exit 1
+        run: python3 -u .github/scripts/asc_status.py
