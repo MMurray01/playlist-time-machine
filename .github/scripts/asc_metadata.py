@@ -82,7 +82,7 @@ SCREENSHOT_SLOTS = (
     {
         "folder": "iphone-69",
         "label": "iPhone 6.9-inch",
-        "types": ("APP_IPHONE_69", "APP_IPHONE_67"),
+        "types": ("APP_IPHONE_67",),
         "sizes": {(1320, 2868), (1290, 2796), (1260, 2736)},
     },
     {
@@ -94,7 +94,7 @@ SCREENSHOT_SLOTS = (
     {
         "folder": "ipad-13",
         "label": "iPad 13-inch",
-        "types": ("APP_IPAD_PRO_129", "APP_IPAD_PRO_3GEN_129"),
+        "types": ("APP_IPAD_PRO_3GEN_129",),
         "sizes": {(2064, 2752), (2048, 2732)},
     },
 )
@@ -646,9 +646,11 @@ def upload_screenshot_slot(
             failures.append(f"{label} {image.name} is {width}x{height}")
             return
     size = png_size(images[0])
+    # 13-inch pixels belong on the 3rd-generation 12.9-inch slot. The older 12.9-inch slot rejects 2064x2752.
+    # There is no 6.9-inch display type. Those pixels use the 6.7-inch slot.
     preferred = {
-        (2048, 2732): ("APP_IPAD_PRO_3GEN_129", "APP_IPAD_PRO_129"),
-        (2064, 2752): ("APP_IPAD_PRO_129",),
+        (2048, 2732): ("APP_IPAD_PRO_3GEN_129",),
+        (2064, 2752): ("APP_IPAD_PRO_3GEN_129",),
     }
     ready = ensure_screenshot_set(bearer, localization, preferred.get(size, slot["types"]))
     if ready is None:
@@ -657,7 +659,20 @@ def upload_screenshot_slot(
     screenshot_set, display_type = ready
     print(f"Screenshot display type for {label}: {display_type}")
     existing = call("GET", f"/v1/appScreenshotSets/{screenshot_set}/appScreenshots?limit=20", bearer)
-    for item in (existing[1].get("data") if existing else None) or []:
+    current = (existing[1].get("data") if existing else None) or []
+    good = []
+    for item in current:
+        attributes = item.get("attributes") or {}
+        asset = attributes.get("imageAsset") or {}
+        state = (attributes.get("assetDeliveryState") or {}).get("state")
+        found = (asset.get("width"), asset.get("height"))
+        if state == "COMPLETE" and found in slot["sizes"]:
+            good.append(item)
+    if len(good) >= 3 and len(good) == len(current):
+        print(f"{label} already has {len(good)} COMPLETE screenshots on {display_type}. Leaving them in place.")
+        print(f"SCREENSHOT COUNT {label}: {len(good)}")
+        return
+    for item in current:
         call("DELETE", f"/v1/appScreenshots/{item['id']}", bearer)
     uploaded = 0
     before = len(failures)
