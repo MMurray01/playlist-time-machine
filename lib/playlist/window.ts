@@ -70,12 +70,15 @@ export function playlistDescription(startYear: number, endYear: number): string 
   return `Number one hits from ${startYear} through ${endYear}, the popular songs of the time. Made at playlisttimemachine.com`
 }
 
+/** Stored playlist title length. Inputs longer than this are clipped after cleaning. */
+export const MAX_PLAYLIST_TITLE_LENGTH = 80
+
 export function clipTitle(value: string): string {
   return value
     .replace(/[\u0000-\u001f]/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 80)
+    .slice(0, MAX_PLAYLIST_TITLE_LENGTH)
 }
 
 export function cleanPlaylistTitle(value: string, graduationYear: number): string {

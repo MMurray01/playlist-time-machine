@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { trackEvent } from "@/lib/analytics"
+import { shareFailureNote } from "@/lib/share/failure"
 import { mapPool } from "@/lib/providers/batch"
 import {
   collageArtworkUrl,
@@ -348,8 +349,10 @@ export function CoverCollage({
       await navigator.clipboard.writeText(plan.fileText)
       setShareNote("Invite link copied.")
       return "copied"
-    } catch {
-      setShareNote("The collage could not be shared. You can still download the picture.")
+    } catch (error) {
+      setShareNote(
+        shareFailureNote(error, "The collage could not be shared. You can still download the picture."),
+      )
       return "failed"
     } finally {
       setSharing(false)

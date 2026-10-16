@@ -13,3 +13,13 @@ export function isMissingColumnError(
     error.code === "PGRST204"
   )
 }
+
+/** PostgREST has not loaded this function yet, so the migration is not applied. */
+export function isMissingRpcFunction(
+  error: { message?: string; code?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  if (error.code === "PGRST202") return true
+  const message = (error.message ?? "").toLowerCase()
+  return message.includes("could not find the function")
+}

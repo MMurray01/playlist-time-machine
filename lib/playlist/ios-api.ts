@@ -22,9 +22,20 @@ export const ITUNES_PREVIEW_ATTRIBUTION = "Song previews provided courtesy of iT
 
 export const API_VERSION = 1
 
-const GENRE_TEXT = /^[\p{L}\p{N}][\p{L}\p{N}&/+' ._()-]{0,39}$/u
+/** Raw share-title length `POST /api/share` rejects before clipping to MAX_PLAYLIST_TITLE_LENGTH. */
+export const MAX_SHARE_TITLE_LENGTH = 120
 
-const BLOCKED_TITLE_WORDS = [
+/** Genre names accepted on a share link. The chart library uses a much shorter list. */
+export const MAX_SHARE_GENRES = 12
+
+export const MAX_SHARE_GENRE_LENGTH = 40
+
+const GENRE_TEXT = new RegExp(
+  `^[\\p{L}\\p{N}][\\p{L}\\p{N}&/+' ._()-]{0,${MAX_SHARE_GENRE_LENGTH - 1}}$`,
+  "u",
+)
+
+export const BLOCKED_TITLE_WORDS = [
   "fuck",
   "shit",
   "bitch",
@@ -80,7 +91,7 @@ export type PlaylistQuery =
   | { kind: "error"; status: number; error: string }
 
 function parseGenreList(parts: string[]): { ok: true; genres: string[] } | { ok: false; error: string } {
-  if (parts.length > 12) return { ok: false, error: "Choose fewer genres." }
+  if (parts.length > MAX_SHARE_GENRES) return { ok: false, error: "Choose fewer genres." }
   const genres: string[] = []
   for (const part of parts) {
     const genre = part.trim()
@@ -120,7 +131,7 @@ export function parseShareBody(
     return { ok: false, error: "Enter the year you graduated high school." }
   }
   const title = typeof record.title === "string" ? record.title : ""
-  if (title.length > 120) return { ok: false, error: "That playlist name is too long." }
+  if (title.length > MAX_SHARE_TITLE_LENGTH) return { ok: false, error: "That playlist name is too long." }
 
   let genres: string[] = []
   if (record.genres != null) {
@@ -140,9 +151,22 @@ export function parseShareBody(
 }
 
 export function shareErrorStatus(error: string): number {
-  if (error.includes("server database key")) return 503
+  if (error.startsWith("Too many share links")) return 429
+  if (error.includes("server database key") || error.includes("database connection")) return 503
   if (error.includes("could not be saved")) return 500
   return 400
+}
+
+export function shareFailureHeaders(
+  status: number,
+  retryAfterSeconds?: number,
+): Record<string, string> | undefined {
+  if (status !== 429) return undefined
+  const seconds = Math.max(1, Math.ceil(retryAfterSeconds ?? 60 * 60))
+  return {
+    "Retry-After": String(seconds),
+    "Cache-Control": "no-store",
+  }
 }
 
 export interface PlaylistShareCopy {

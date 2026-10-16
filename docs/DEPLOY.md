@@ -20,14 +20,25 @@ The site builds a playlist with Supabase alone. Saving and album art need the th
 
 | Name | When to set it |
 | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | Creating a share link. Server only. Never prefix it with `NEXT_PUBLIC_`. Without it, the playlist stays on the page and Share explains that the server key is missing. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Only until `supabase/migrations/20261016130000_share_playlist_functions.sql` is applied. Server only. Never prefix it with `NEXT_PUBLIC_`. After that migration, share links use the anon key. |
+| `UPSTASH_REDIS_REST_URL` | Optional. With `UPSTASH_REDIS_REST_TOKEN`, limits new share links to 10 per IP per hour across server instances. Leave both unset and sharing still works. |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional pair for the Redis REST URL above. Server only. A `KV_REST_API_*` pair is not used. |
 | `NEXT_PUBLIC_SITE_URL` | Optional absolute origin for a share link when the request has no host. Vercel sends `x-forwarded-host`, so leave this empty unless you want to force one origin. |
+
+`createSharedPlaylist` can limit new share links to 10 per IP per hour when both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set. `POST /api/share` and the website share action both call it. The API answers the 11th create with HTTP 429 and a `Retry-After` header. The website shows the same sentence. Without that pair, sharing is not limited and does not need Upstash. If the pair is set and Redis cannot be reached, that server process keeps the count in memory.
 
 `NEXT_PUBLIC_*` values are inlined at build time. Redeploy after changing them.
 
-Apply `supabase/migrations/20261014020000_shared_playlist_title.sql` yourself if a database does not have `shared_playlists.title` yet. Deploy does not change the database. If `title` is missing, share pages fall back to “Class of {year}”.
+Deploy does not change the database. Apply migrations yourself, in this order:
 
-There is no Apple song id or ISRC on `number_one_hits` today, so this deploy does not add one. Matching uses the song title and artist, then a shorter title and the main artist, then the title alone. If a row includes `apple_song_id` or `isrc`, that value is used only when the recording still agrees with the chart title and artist. When the Apple Music catalog cannot be searched, the iTunes Search API still fills in covers and 30-second previews. No migration was added.
+1. Deploy the commit that calls `create_shared_playlist` and `get_shared_playlist`, and wait until that deployment is the one serving the site. Sharing still works. New links are saved with the service role key, because the functions are not installed yet. This code does not write `birth_year` or `birth_month`. Share pages still read the table.
+2. Apply `supabase/migrations/20261016130000_share_playlist_functions.sql`. Do this only after step 1 is live. From then on, new links and share pages use the anon key and those two functions. Anonymous clients cannot list every shared playlist. The unused `birth_year` and `birth_month` columns are removed. The service role key is no longer used for sharing.
+
+If `shared_playlists.title` is missing, apply `supabase/migrations/20261014020000_shared_playlist_title.sql` before step 2. The new migration adds that column if it is not there. Share pages show “Class of {year}” when a row has no title.
+
+Do not apply the new migration while the previous website is still serving. That website writes `birth_year` and `birth_month` and reads the table with the anon key, so share pages would come back empty and new links would fail until this code is deployed.
+
+There is no Apple song id or ISRC on `number_one_hits` today, so this deploy does not add one. Matching uses the song title and artist, then a shorter title and the main artist, then the title alone. If a row includes `apple_song_id` or `isrc`, that value is used only when the recording still agrees with the chart title and artist. When the Apple Music catalog cannot be searched, the iTunes Search API still fills in covers and 30-second previews. This deploy does not add a song-id column.
 
 ## Graduation year, covers, and previews
 
@@ -65,7 +76,7 @@ The native app calls two routes. The website still builds and shares playlists t
 | Route | Use |
 | --- | --- |
 | `GET /api/playlist?year=&genres=` | The eleven-year playlist, catalog matches, and the square playlist artwork. `GET /api/playlist` with no year returns the year limits. `GET /api/playlist?id=` opens a share link. |
-| `POST /api/share` | Creates the same `shared_playlists` row as the website. The body is `{ graduationYear, title, genres }`. The service role key stays on the server. |
+| `POST /api/share` | Creates the same `shared_playlists` row as the website. The body is `{ graduationYear, title, genres }`. After the share migration, this uses the anon key and `create_shared_playlist`. |
 | `/.well-known/apple-app-site-association` | Universal links for `/p/*`. |
 
 The association file uses app id `WS2R3SYV4W.com.abeba.playlisttimemachine`. Apple does not follow redirects when it fetches this file, and the response must be `200` with `Content-Type: application/json`.

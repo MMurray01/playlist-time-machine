@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-Copy `.env.example` to `.env.local`. The Supabase URL and anon key are enough to build a playlist. Saving to Apple Music also needs `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and `APPLE_PRIVATE_KEY`. Share links need `SUPABASE_SERVICE_ROLE_KEY`. Vercel setup is in [docs/DEPLOY.md](docs/DEPLOY.md).
+Copy `.env.example` to `.env.local`. The Supabase URL and anon key are enough to build a playlist and, after the share-function migration, to save a share link. Saving to Apple Music also needs `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and `APPLE_PRIVATE_KEY`. Until that migration is applied, share links still need `SUPABASE_SERVICE_ROLE_KEY`. Vercel setup is in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ```bash
 pnpm test

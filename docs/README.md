@@ -10,7 +10,8 @@ Set these in the host, not in git. `.env.example` lists every name. Vercel steps
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Chart library and shared playlist pages |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public reads |
-| `SUPABASE_SERVICE_ROLE_KEY` | Creating share links. Server only. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Saving a share link only until the share-function migration is applied. Server only. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Optional. When both are set, 10 new share links per IP per hour, shared across server instances. |
 | `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Apple Music developer token. All three are required to save and to load album art. |
 | `NEXT_PUBLIC_SITE_URL` | Optional fallback for share links |
 
@@ -48,8 +49,8 @@ Year notes are computed from those rows (count of No. 1s, longest `weeks_at_posi
 
 ## Migration
 
-Run `supabase/migrations/20261014020000_shared_playlist_title.sql` on the database if it is not applied yet.
+Run `supabase/migrations/20261014020000_shared_playlist_title.sql` on the database if it is not applied yet. It adds `shared_playlists.title` for a gift or reunion name. Share pages show “Class of {year}” when the title is missing or null.
 
-It adds `shared_playlists.title` for a gift or reunion name. Share pages fall back to “Class of {year}” when the column is missing or null.
+Then deploy the website that calls the share functions, and only after that deployment is serving, run `supabase/migrations/20261016130000_share_playlist_functions.sql`. The order is in [DEPLOY.md](DEPLOY.md). That migration adds `create_shared_playlist` and `get_shared_playlist`, closes anonymous listing of `shared_playlists`, and drops the unused `birth_year` and `birth_month` columns.
 
-`number_one_hits` is a view over `chart_entries`, `songs`, `artists`, and `genres`. It cannot take row level security directly, and it has to keep running as the owner: `chart_entries` is limited to song owners, so a security-invoker view would hide the chart. The view is not auto-updatable. The migration revokes insert, update, and delete on it from the public API roles. Do not put the service role key in a `NEXT_PUBLIC_` variable.
+`number_one_hits` is a view over `chart_entries`, `songs`, `artists`, and `genres`. It cannot take row level security directly, and it has to keep running as the owner: `chart_entries` is limited to song owners, so a security-invoker view would hide the chart. The view is not auto-updatable. The title migration revokes insert, update, and delete on it from the public API roles. Do not put the service role key in a `NEXT_PUBLIC_` variable.
