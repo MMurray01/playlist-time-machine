@@ -165,6 +165,7 @@ jobs:
         if: steps.secrets.outputs.present == 'true'
         run: python3 -u .github/scripts/asc_upload.py --check
 
+      # CI creates an Apple Development certificate on each archive. Extras are revoked first.
       - name: Free a development certificate if the account is full
         if: steps.secrets.outputs.present == 'true'
         run: python3 -u .github/scripts/asc_certs.py

@@ -39,20 +39,23 @@ def main() -> None:
     development = [row for row in rows if row["type"] in DEVELOPMENT]
     distribution = [row for row in rows if row["type"] in DISTRIBUTION]
     print(f"Development certificates: {len(development)}. Distribution certificates: {len(distribution)}.")
-    if len(development) < 2:
+    if len(development) <= 1:
         return
-    oldest = sorted(development, key=lambda item: item["expires"])[0]
-    print(
-        f"Revoking the oldest development certificate {oldest['id']} "
-        f"({oldest['type']}, expires {oldest['expires']}) so archive can sign."
-    )
-    try:
-        api("DELETE", f"/v1/certificates/{oldest['id']}", bearer)
-    except SystemExit as error:
-        print(error)
-        print("Could not revoke that certificate. Archive will try anyway.")
-        return
-    print("Revoked the oldest development certificate.")
+    ordered = sorted(development, key=lambda item: item["expires"])
+    # Xcode refused to sign while 14 of these CI certificates were still present.
+    # Keep the newest and revoke the rest. Distribution certificates are not touched.
+    for oldest in ordered[:-1]:
+        print(
+            f"Revoking development certificate {oldest['id']} "
+            f"({oldest['type']}, expires {oldest['expires']})."
+        )
+        try:
+            api("DELETE", f"/v1/certificates/{oldest['id']}", bearer)
+        except SystemExit as error:
+            print(error)
+            print("Could not revoke that certificate. Archive will try anyway.")
+            return
+    print(f"Kept the newest development certificate {ordered[-1]['id']}.")
 
 
 if __name__ == "__main__":
