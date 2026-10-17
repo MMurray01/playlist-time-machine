@@ -22,37 +22,25 @@ struct SongDetailView: View {
                         .foregroundColor(Theme.inkSoft)
                 }
 
-                if playback.canPlayCatalog, hit.catalog?.catalogId != nil {
-                    Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : "Play") {
-                        Task { await playback.toggle(hit) }
+                HStack(alignment: .center, spacing: 10) {
+                    if hit.previewURL != nil {
+                        Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause" : ":30 Preview") {
+                            Task { await playback.toggle(hit) }
+                        }
+                        .buttonStyle(CompactButtonStyle())
+                    } else {
+                        Text("No preview")
+                            .font(.system(size: 15, weight: .semibold))
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(Theme.inkSoft)
+                            .frame(maxWidth: .infinity, minHeight: 36)
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-                } else if hit.previewURL != nil {
-                    Button(playback.currentKey == hit.key && playback.isPlaying ? "Pause preview" : "Play 30-second preview") {
-                        Task { await playback.toggle(hit) }
+                    if hit.appleURL != nil {
+                        Button("Listen on Apple Music") {
+                            Task { await playback.listenInAppleMusic(hit) }
+                        }
+                        .buttonStyle(CompactButtonStyle())
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-                } else {
-                    Text("This song has no preview.")
-                        .font(.subheadline)
-                        .foregroundColor(Theme.inkSoft)
-                }
-
-                if let url = hit.appleURL {
-                    Link(destination: url) {
-                        Image("ListenOnAppleMusic")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 220)
-                    }
-                    .accessibilityLabel("Listen on Apple Music")
-                }
-
-                if !playback.canPlayCatalog, hit.catalog?.catalogId != nil {
-                    Button("Play the full song") {
-                        Task { await playback.requestFullPlayback(hit) }
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
                 }
 
                 if !playback.status.isEmpty {
@@ -62,11 +50,14 @@ struct SongDetailView: View {
                 }
 
                 Text(Copy.previewCourtesy)
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundColor(Theme.inkSoft)
 
-                Button("Close") { dismiss() }
-                    .buttonStyle(SecondaryButtonStyle())
+                Button("Close") {
+                    playback.stop()
+                    dismiss()
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
             .padding(24)
             .frame(maxWidth: 640, alignment: .leading)
@@ -74,6 +65,7 @@ struct SongDetailView: View {
         }
         .background(Theme.paper.ignoresSafeArea())
         .presentationDetents([.large])
+        .onDisappear { playback.stop() }
     }
 
     @ViewBuilder

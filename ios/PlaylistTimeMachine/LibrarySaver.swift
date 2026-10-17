@@ -53,16 +53,26 @@ enum LibrarySaver {
     }
 
     private static func create(name: String, description: String, songs: [Song]) async throws -> Playlist {
-        let first = Array(songs.prefix(100))
+        let firstCount = min(100, songs.count)
+        let first = Array(songs.prefix(firstCount))
         let playlist = try await MusicLibrary.shared.createPlaylist(
             name: name,
             description: description,
             authorDisplayName: "Playlist Time Machine",
             items: first
         )
-        for song in songs.dropFirst(100) {
-            try await MusicLibrary.shared.add(song, to: playlist)
+        guard songs.count > firstCount else { return playlist }
+        // createPlaylist returns after the first 100 songs, which is why the playlist
+        // appears immediately. add() accepts one song, so the old loop waited on a
+        // round trip per remaining hit. edit() replaces the track list in one call.
+        do {
+            return try await MusicLibrary.shared.edit(playlist, items: songs)
+        } catch {
+            var current = playlist
+            for song in songs.dropFirst(firstCount) {
+                current = try await MusicLibrary.shared.add(song, to: current)
+            }
+            return current
         }
-        return playlist
     }
 }

@@ -26,7 +26,7 @@ enum CatalogMatch {
     }
 
     static func song(id: String) async -> Song? {
-        var request = MusicCatalogResourceRequest<Song>(matching: \.id, equalTo: MusicItemID(rawValue: id))
+        let request = MusicCatalogResourceRequest<Song>(matching: \.id, equalTo: MusicItemID(rawValue: id))
         return try? await request.response().items.first
     }
 
@@ -37,7 +37,7 @@ enum CatalogMatch {
         while index < itemIDs.count {
             let end = min(index + 100, itemIDs.count)
             let slice = Array(itemIDs[index..<end])
-            var request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: slice)
+            let request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: slice)
             if let response = try? await request.response() {
                 for song in response.items {
                     found[song.id.rawValue] = song

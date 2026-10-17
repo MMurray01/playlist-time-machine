@@ -22,6 +22,7 @@ struct PlaylistTimeMachineApp: App {
 
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var playback: PlaybackController
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,7 @@ struct RootView: View {
         }
         .sheet(item: $model.selectedHit) { hit in
             SongDetailView(hit: hit)
+                .onDisappear { playback.stop() }
         }
         .background {
             if let draft = model.shareDraft {
@@ -49,5 +51,28 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(.light)
+        .overlay(alignment: .top) {
+            if let message = model.toastMessage {
+                Text(message)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(model.toastIsError ? Theme.dangerInk : Theme.ink)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 8)
+                    .padding(.horizontal, 24)
+                    .contentShape(Capsule())
+                    .onTapGesture { model.dismissToast() }
+                    .gesture(
+                        DragGesture(minimumDistance: 12).onEnded { _ in
+                            model.dismissToast()
+                        }
+                    )
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Dismiss")
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: model.toastMessage)
     }
 }

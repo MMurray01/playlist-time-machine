@@ -5,6 +5,7 @@ enum Theme {
     static let surface = Color.white
     static let ink = Color(red: 17 / 255, green: 17 / 255, blue: 19 / 255)
     static let inkSoft = Color(red: 63 / 255, green: 63 / 255, blue: 70 / 255)
+    static let placeholder = Color(red: 161 / 255, green: 161 / 255, blue: 170 / 255)
     static let line = Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255)
     static let accent = Color(red: 29 / 255, green: 78 / 255, blue: 216 / 255)
     static let onAccent = Color.white
@@ -16,8 +17,6 @@ enum Theme {
 enum Copy {
     static let previewCourtesy = "Song previews provided courtesy of iTunes."
     static let appleTrademark = "Apple and Apple Music are trademarks of Apple Inc., registered in the U.S. and other countries."
-    static let productLine = "a product of Abeba Co"
-    static let contact = "legal@abeba.co"
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
@@ -44,6 +43,24 @@ struct SecondaryButtonStyle: ButtonStyle {
             .foregroundColor(Theme.ink)
             .background(Theme.surface)
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.line, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+/// Shorter than the full-width build button, with the same 12-point corner radius.
+/// Both labels use one size and weight. The longer title must not shrink on its own.
+struct CompactButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .multilineTextAlignment(.center)
+            .lineLimit(1)
+            .allowsTightening(true)
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .padding(.horizontal, 4)
+            .foregroundColor(Theme.onAccent)
+            .background(Theme.accent)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .opacity(configuration.isPressed ? 0.85 : 1)
     }
