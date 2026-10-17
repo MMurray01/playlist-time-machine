@@ -1,0 +1,42 @@
+name: App Store review status
+
+# Reads version 1.0 and one review submission. GET requests only.
+# Does not build, upload, or change App Store Connect.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 12 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    name: Read review status
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require App Store Connect secrets
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          missing=()
+          [ -z "${ASC_ISSUER_ID}" ] && missing+=(ASC_ISSUER_ID)
+          [ -z "${ASC_KEY_ID}" ] && missing+=(ASC_KEY_ID)
+          [ -z "${ASC_PRIVATE_KEY}" ] && missing+=(ASC_PRIVATE_KEY)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error title=Missing App Store Connect secrets::${missing[*]}"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Read version 1.0 and the review submission
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: python3 -u .github/scripts/asc_review_status.py
