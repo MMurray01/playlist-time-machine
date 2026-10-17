@@ -1,7 +1,7 @@
 name: App Store review status
 
-# Reads version 1.0 and one review submission. GET requests only.
-# Does not build, upload, or change App Store Connect.
+# Reads version 1.0, one review submission, and the latest build.
+# GET requests only. Does not build, upload, or change App Store Connect.
 
 on:
   workflow_dispatch:
@@ -40,3 +40,10 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         run: python3 -u .github/scripts/asc_review_status.py
+
+      - name: Read latest build processing state
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: python3 -u .github/scripts/asc_build_status.py
