@@ -2,6 +2,7 @@
 """Print the App Store version and review submission states.
 
 GET requests only. This does not create, update, or delete anything.
+Any HTTP method other than GET is refused.
 """
 
 import json
@@ -12,11 +13,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from asc_status import write_key  # noqa: E402
-from asc_upload import api, token  # noqa: E402
+from asc_upload import api as connect_api, token  # noqa: E402
 
 APP_ID = "6823308079"
 VERSION = "1.0"
 SUBMISSION_ID = "be5541d9-e987-4049-a22b-85e1a6032edd"
+
+
+def api(method: str, path: str, bearer: str, body=None):
+    if method != "GET":
+        raise SystemExit(
+            f"Refusing App Store Connect {method}. This script only sends GET."
+        )
+    return connect_api(method, path, bearer, body)
 
 
 def get(path: str, bearer: str):
