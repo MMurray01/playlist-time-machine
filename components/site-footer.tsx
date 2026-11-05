@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { GetTheAppLink } from "@/components/app-store-link"
 import { ShareLaunch } from "@/components/share-sheet"
 import { getAffiliateToken } from "@/lib/server/env"
 
@@ -14,6 +15,8 @@ export function SiteFooter() {
         <Link href="/terms">Terms</Link>
         <span aria-hidden="true">·</span>
         <ShareLaunch target="site" className="footer-share" />
+        <span aria-hidden="true">·</span>
+        <GetTheAppLink />
         <span aria-hidden="true">·</span>
         <span>a product of Abeba Co</span>
       </nav>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { GetTheAppLink } from "@/components/app-store-link"
 import { trackEvent } from "@/lib/analytics"
 import { shareFailureNote } from "@/lib/share/failure"
 import { mapPool } from "@/lib/providers/batch"
@@ -405,6 +406,9 @@ export function CoverCollage({
           </button>
         </div>
         <p className="quiet collage-note">Free to download. Album covers come from Apple for this picture and are not stored here. Not for sale.</p>
+        <p className="collage-app">
+          <GetTheAppLink className="linkish" />
+        </p>
         {shareNote ? (
           <p role="status" className="quiet">
             {shareNote}
