@@ -35,6 +35,39 @@ final class PlaylistTimeMachineTests: XCTestCase {
         XCTAssertFalse(DeepLink.isShareID("no"))
     }
 
+    func testPrintCollageKeepsRoomForThePlaylist() {
+        let plan = CollagePlan(
+            format: "square",
+            layout: "grid",
+            width: 1080,
+            height: 1080,
+            headline: "Class of 1990 · 1985–1995",
+            mark: "Playlist Time Machine",
+            titleSize: 52,
+            markSize: 22,
+            art: CollageBox(x: 54, y: 124, width: 972, height: 878),
+            tiles: [CollageTile(key: "a", x: 54, y: 124, size: 120, hero: true)],
+            heroKeys: ["a"]
+        )
+        let print = PlaylistImages.printPlan(plan)
+        XCTAssertGreaterThanOrEqual(print.width, 3000)
+        XCTAssertGreaterThanOrEqual(print.height, 3000)
+        XCTAssertEqual(print.headline, plan.headline)
+        XCTAssertGreaterThan(print.tiles[0].size, plan.tiles[0].size)
+        XCTAssertEqual(print.tiles[0].key, "a")
+        let source = "https://is1-ssl.mzstatic.com/image/thumb/Music/a/100x100bb.jpg"
+        XCTAssertEqual(
+            PlaylistImages.sizedArtwork(source, size: 3000),
+            "https://is1-ssl.mzstatic.com/image/thumb/Music/a/3000x3000bb.jpg"
+        )
+        XCTAssertEqual(YearWindow.digits(1985), "1985")
+        XCTAssertFalse(YearWindow.digits(1985).contains(","))
+        XCTAssertEqual(YearWindow.cleanTitle("", graduationYear: 1990), "Class of 1990")
+        XCTAssertEqual(YearWindow.cleanTitle("   ", graduationYear: 1990), "Class of 1990")
+        XCTAssertEqual(PlaylistImages.yearRangeLabel(start: 1985, end: 1995), "1985 - 1995")
+        XCTAssertFalse(PlaylistImages.yearRangeLabel(start: 1985, end: 1995).contains(","))
+    }
+
     func testStoryPicksSpreadAcrossYears() {
         struct Row { let year: Int }
         var hits: [Row] = []
@@ -130,4 +163,34 @@ final class PlaylistTimeMachineTests: XCTestCase {
         XCTAssertNil(document.artwork)
         XCTAssertEqual(document.library.name, "Class of 1984 · Playlist Time Machine")
     }
+
+    func testDetachedLibrarySaveSurvivesCancellingTheSheetTask() async {
+        let started = expectation(description: "library save started")
+        let finished = expectation(description: "library save finished")
+        let result = SaveSurvival()
+        let sheet = Task {
+            result.job = Task.detached {
+                started.fulfill()
+                do {
+                    try await Task.sleep(nanoseconds: 200_000_000)
+                    result.survived = !Task.isCancelled
+                } catch {
+                    result.survived = false
+                }
+                finished.fulfill()
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        sheet.cancel()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertEqual(result.survived, true)
+    }
+}
+
+private final class SaveSurvival: @unchecked Sendable {
+    var job: Task<Void, Never>?
+    var survived = false
 }

@@ -88,14 +88,37 @@ def api(method: str, path: str, bearer: str, body=None):
     headers = {"Authorization": f"Bearer {bearer}"}
     if data is not None:
         headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(API + path, data=data, method=method, headers=headers)
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            raw = response.read()
-            return response.status, json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode(errors="replace")[:2000]
-        raise SystemExit(f"App Store Connect {method} {path} failed (HTTP {error.code}). Apple said: {detail}")
+    # A short backoff covers the transient HTTP 500 Apple returned before build 17 was created.
+    delays = (2, 4, 8)
+    attempt = 0
+    while True:
+        attempt += 1
+        request = urllib.request.Request(API + path, data=data, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                raw = response.read()
+                return response.status, json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode(errors="replace")[:2000]
+            if error.code >= 500 and attempt <= len(delays):
+                wait = delays[attempt - 1]
+                print(
+                    f"App Store Connect {method} {path} returned HTTP {error.code}. "
+                    f"Retrying in {wait} seconds (attempt {attempt} of {len(delays) + 1})."
+                )
+                time.sleep(wait)
+                continue
+            raise SystemExit(f"App Store Connect {method} {path} failed (HTTP {error.code}). Apple said: {detail}")
+        except (TimeoutError, urllib.error.URLError) as error:
+            if attempt <= len(delays):
+                wait = delays[attempt - 1]
+                print(
+                    f"App Store Connect {method} {path} did not answer ({error}). "
+                    f"Retrying in {wait} seconds (attempt {attempt} of {len(delays) + 1})."
+                )
+                time.sleep(wait)
+                continue
+            raise SystemExit(f"App Store Connect {method} {path} did not answer ({error}).")
 
 
 def app_id(bearer: str) -> str:

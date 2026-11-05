@@ -63,6 +63,9 @@ def try_api(method: str, path: str, bearer: str, body=None):
     except SystemExit as error:
         print(error)
         return None
+    except OSError as error:
+        print(f"App Store Connect request failed: {error}")
+        return None
 
 
 def messages(state) -> list[str]:

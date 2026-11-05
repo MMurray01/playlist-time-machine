@@ -2,28 +2,72 @@ import UIKit
 
 actor ArtworkImageCache {
     static let shared = ArtworkImageCache()
-    private var images: [URL: UIImage] = [:]
+    private var images: [String: UIImage] = [:]
 
-    func image(for url: URL) async -> UIImage? {
-        if let cached = images[url] { return cached }
+    func image(for url: URL, maxPixel: CGFloat, cache: Bool) async -> UIImage? {
+        let key = "\(url.absoluteString)#\(Int(maxPixel.rounded()))"
+        if cache, let cached = images[key] { return cached }
         guard url.scheme == "https" else { return nil }
         var request = URLRequest(url: url)
-        request.timeoutInterval = 20
+        request.timeoutInterval = 30
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode),
-              let image = UIImage(data: data)
+              let image = PlaylistImages.decodedImage(data, maxPixel: maxPixel)
         else { return nil }
-        images[url] = image
+        if cache { images[key] = image }
         return image
     }
 }
 
 enum PlaylistImages {
+    /// Scales a 1080 plan so the longest side is at least 3000 pixels.
+    static func printPlan(_ plan: CollagePlan) -> CollagePlan {
+        let longest = max(plan.width, plan.height)
+        let factor = max(1, (3000 / max(longest, 1)).rounded(.up))
+        func scale(_ value: Double) -> Double { (value * factor).rounded() }
+        return CollagePlan(
+            format: plan.format,
+            layout: plan.layout,
+            width: scale(plan.width),
+            height: scale(plan.height),
+            headline: plan.headline,
+            mark: plan.mark,
+            titleSize: scale(plan.titleSize),
+            markSize: scale(plan.markSize),
+            art: CollageBox(x: scale(plan.art.x), y: scale(plan.art.y), width: scale(plan.art.width), height: scale(plan.art.height)),
+            tiles: plan.tiles.map { tile in
+                CollageTile(key: tile.key, x: scale(tile.x), y: scale(tile.y), size: max(1, scale(tile.size)), hero: tile.hero)
+            },
+            heroKeys: plan.heroKeys
+        )
+    }
+
     @MainActor
-    static func renderArtwork(_ artwork: PlaylistArtwork, headline: String, link: String?) async -> UIImage {
-        let covers = await loadCovers(artwork.covers)
-        let plan = artwork.plan
+    static func renderArtwork(_ artwork: PlaylistArtwork, startYear: Int, endYear: Int) async -> UIImage {
+        let covers = await loadCovers(artwork.covers, pixels: [:])
+        return drawArtwork(plan: artwork.plan, covers: covers, range: yearRangeLabel(start: startYear, end: endYear))
+    }
+
+    /// Print-size collage. Covers, the year range at the top, and a small brand mark.
+    @MainActor
+    static func renderPrintArtwork(_ artwork: PlaylistArtwork, startYear: Int, endYear: Int) async -> UIImage {
+        let plan = printPlan(artwork.plan)
+        var pixels: [String: Int] = [:]
+        for tile in plan.tiles {
+            pixels[tile.key] = Int(tile.size.rounded(.up))
+        }
+        let covers = await loadCovers(artwork.covers, pixels: pixels)
+        return drawArtwork(plan: plan, covers: covers, range: yearRangeLabel(start: startYear, end: endYear))
+    }
+
+    /// "1985 - 1995", never with a thousands separator.
+    static func yearRangeLabel(start: Int, end: Int) -> String {
+        "\(YearWindow.digits(start)) - \(YearWindow.digits(end))"
+    }
+
+    @MainActor
+    private static func drawArtwork(plan: CollagePlan, covers: [String: LoadedCover], range: String) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
@@ -32,12 +76,11 @@ enum PlaylistImages {
             let ctx = context.cgContext
             UIColor(red: 246 / 255, green: 246 / 255, blue: 247 / 255, alpha: 1).setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: plan.width, height: plan.height))
-            let title = fitted(headline, maxWidth: plan.width - 108, size: plan.titleSize, weight: .semibold)
-            drawCentered(title.text, font: title.font, color: UIColor(red: 17 / 255, green: 17 / 255, blue: 19 / 255, alpha: 1), midY: plan.art.y / 2, canvasWidth: plan.width, maxWidth: plan.width - 108)
             for tile in plan.tiles {
                 drawTile(tile, title: covers[tile.key]?.title ?? "", image: covers[tile.key]?.image, in: ctx)
             }
-            drawFooter(mark: artwork.mark, link: link, plan: plan)
+            drawYearRange(range, plan: plan)
+            drawBrand(plan: plan)
         }
     }
 
@@ -47,7 +90,7 @@ enum PlaylistImages {
         var tiles: [(title: String, image: UIImage?)] = []
         for hit in picked {
             let art = hit.catalog?.artworkLargeUrl ?? hit.catalog?.artworkUrl
-            let image = await imageForArtwork(art, size: 360)
+            let image = await imageForArtwork(art, size: 360, maxPixel: 360, cache: true)
             tiles.append((hit.title, image))
         }
         let width = 1080.0
@@ -128,33 +171,66 @@ enum PlaylistImages {
         let image: UIImage?
     }
 
-    private static func loadCovers(_ covers: [ArtworkCover]) async -> [String: LoadedCover] {
-        await withTaskGroup(of: (String, LoadedCover).self) { group in
-            for cover in covers {
-                group.addTask {
-                    let image = await imageForArtwork(cover.artworkUrl, size: nil)
-                    return (cover.key, LoadedCover(title: cover.title, image: image))
+    private static func loadCovers(_ covers: [ArtworkCover], pixels: [String: Int]) async -> [String: LoadedCover] {
+        var loaded: [String: LoadedCover] = [:]
+        var index = 0
+        let batchSize = 6
+        while index < covers.count {
+            let end = min(index + batchSize, covers.count)
+            let slice = Array(covers[index..<end])
+            let batch = await withTaskGroup(of: (String, LoadedCover).self) { group in
+                for cover in slice {
+                    let pixel = pixels[cover.key]
+                    group.addTask {
+                        let image: UIImage?
+                        if let pixel {
+                            let request = min(3000, max(pixel, 800))
+                            image = await imageForArtwork(cover.artworkUrl, size: request, maxPixel: CGFloat(pixel), cache: false)
+                        } else {
+                            image = await imageForArtwork(cover.artworkUrl, size: nil, maxPixel: 640, cache: true)
+                        }
+                        return (cover.key, LoadedCover(title: cover.title, image: image))
+                    }
                 }
+                var found: [String: LoadedCover] = [:]
+                for await (key, cover) in group {
+                    found[key] = cover
+                }
+                return found
             }
-            var loaded: [String: LoadedCover] = [:]
-            for await (key, cover) in group {
-                loaded[key] = cover
-            }
-            return loaded
+            loaded.merge(batch) { _, new in new }
+            index = end
         }
+        return loaded
     }
 
-    private static func imageForArtwork(_ raw: String?, size: Int?) async -> UIImage? {
-        guard var raw, let url = URL(string: raw), url.scheme == "https" else { return nil }
+    private static func imageForArtwork(_ raw: String?, size: Int?, maxPixel: CGFloat, cache: Bool) async -> UIImage? {
+        guard var raw, raw.hasPrefix("https://") else { return nil }
         if let size {
             raw = sizedArtwork(raw, size: size)
-            guard let sized = URL(string: raw) else { return nil }
-            return await ArtworkImageCache.shared.image(for: sized)
         }
-        return await ArtworkImageCache.shared.image(for: url)
+        guard let url = URL(string: raw) else { return nil }
+        return await ArtworkImageCache.shared.image(for: url, maxPixel: maxPixel, cache: cache)
     }
 
-    private static func sizedArtwork(_ value: String, size: Int) -> String {
+    static func decodedImage(_ data: Data, maxPixel: CGFloat) -> UIImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+            return UIImage(data: data)
+        }
+        let options = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, maxPixel),
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+        ] as CFDictionary
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else {
+            return UIImage(data: data)
+        }
+        return UIImage(cgImage: cgImage)
+    }
+
+    static func sizedArtwork(_ value: String, size: Int) -> String {
         guard let regex = try? NSRegularExpression(pattern: #"(\d+)x(\d+)(bb)?(?=\.(?:jpg|jpeg|png|webp)\b)"#, options: [.caseInsensitive]) else {
             return value
         }
@@ -167,7 +243,7 @@ enum PlaylistImages {
             image: image,
             title: title,
             rect: CGRect(x: tile.x, y: tile.y, width: tile.size, height: tile.size),
-            radius: min(12, tile.size * 0.08),
+            radius: max(8, tile.size * 0.06),
             dark: false
         )
         _ = context
@@ -198,22 +274,32 @@ enum PlaylistImages {
         }
     }
 
-    private static func drawFooter(mark: String, link: String?, plan: CollagePlan) {
+    /// Centered in the title band above the covers. The size follows the canvas.
+    private static func drawYearRange(_ text: String, plan: CollagePlan) {
+        let font = UIFont.systemFont(ofSize: max(22, plan.titleSize), weight: .bold)
+        let color = UIColor(red: 17 / 255, green: 17 / 255, blue: 19 / 255, alpha: 1)
+        let bounds = (text as NSString).size(withAttributes: [.font: font])
+        let band = max(bounds.height + 8, plan.art.y)
+        let x = (plan.width - bounds.width) / 2
+        let y = max(0, (band - bounds.height) / 2)
+        text.draw(at: CGPoint(x: x, y: y), withAttributes: [
+            .font: font,
+            .foregroundColor: color,
+        ])
+    }
+
+    /// Small corner credit. The size follows the canvas so a 3000px print stays legible.
+    private static func drawBrand(plan: CollagePlan) {
+        let scale = max(1, plan.height / 1080)
+        let font = UIFont.systemFont(ofSize: 28 * scale, weight: .medium)
         let color = UIColor(red: 63 / 255, green: 63 / 255, blue: 70 / 255, alpha: 1)
-        if let link, !link.isEmpty {
-            let markFont = UIFont.systemFont(ofSize: plan.markSize, weight: .medium)
-            let linkFont = UIFont.systemFont(ofSize: max(16, plan.markSize - 4), weight: .medium)
-            drawCentered(mark, font: markFont, color: color, midY: plan.height - 52, canvasWidth: plan.width, maxWidth: plan.width - 108)
-            let fittedLink = fitted(link, maxWidth: plan.width - 108, size: linkFont.pointSize, weight: .medium)
-            drawCentered(fittedLink.text, font: fittedLink.font, color: color, midY: plan.height - 24, canvasWidth: plan.width, maxWidth: plan.width - 108)
-        } else {
-            let font = UIFont.systemFont(ofSize: plan.markSize, weight: .medium)
-            let textSize = (mark as NSString).size(withAttributes: [.font: font])
-            mark.draw(at: CGPoint(x: plan.width - 54 - textSize.width, y: plan.height - 39 - textSize.height / 2), withAttributes: [
-                .font: font,
-                .foregroundColor: color,
-            ])
-        }
+        let mark = "Playlist Time Machine"
+        let textSize = (mark as NSString).size(withAttributes: [.font: font])
+        let inset = 36 * scale
+        mark.draw(at: CGPoint(x: plan.width - inset - textSize.width, y: plan.height - inset - textSize.height), withAttributes: [
+            .font: font,
+            .foregroundColor: color,
+        ])
     }
 
     private static func drawCentered(_ text: String, font: UIFont, color: UIColor, midY: Double, canvasWidth: Double, maxWidth: Double) {
@@ -255,12 +341,6 @@ enum PlaylistImages {
             .map { String($0).uppercased() }
             .joined()
         return letters.isEmpty ? "1" : letters
-    }
-
-    static func headline(title: String, start: Int, end: Int) -> String {
-        let name = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        let shown = name.isEmpty ? "Playlist" : name
-        return "\(shown) · \(start)\u{2013}\(end)"
     }
 }
 

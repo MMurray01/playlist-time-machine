@@ -13,17 +13,16 @@ struct PlaylistView: View {
                     }
 
                     artwork(document)
+                    Text("Touch image to save or share")
+                        .font(.caption2)
+                        .foregroundColor(Theme.inkSoft)
+                        .frame(maxWidth: .infinity, alignment: .center)
                     actions(document)
                     if let message = document.filterMessage {
                         Text(message)
                             .font(.subheadline)
                             .foregroundColor(Theme.inkSoft)
                     }
-                    genreBar(document)
-                    viewToggle
-                    Text(document.courtesy.isEmpty ? Copy.previewCourtesy : document.courtesy)
-                        .font(.footnote)
-                        .foregroundColor(Theme.inkSoft)
 
                     LazyVStack(alignment: .leading, spacing: 28) {
                         ForEach(document.playlist.years) { chapter in
@@ -40,11 +39,14 @@ struct PlaylistView: View {
             }
         }
         .background(Theme.paper.ignoresSafeArea())
-        .navigationTitle(model.document?.playlist.title ?? "Playlist")
+        .navigationTitle(model.document.map { "Class of \(YearWindow.digits($0.playlist.graduationYear))" } ?? "Playlist")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("Year") { model.backToYear() }
+                Button("Year") {
+                    playback.stop()
+                    model.backToYear()
+                }
             }
         }
         .onAppear {
@@ -53,18 +55,31 @@ struct PlaylistView: View {
         .onChange(of: model.document?.playlist.hits.map(\.key) ?? []) { _ in
             playback.replace(songs: model.document?.playlist.hits ?? [])
         }
-        .task { await playback.refreshSubscription() }
+        .safeAreaInset(edge: .bottom, spacing: 10) {
+            if model.document != nil {
+                playlistDock
+            }
+        }
+        .sheet(isPresented: $model.showAppleMusicSave) {
+            SaveToAppleMusicSheet()
+        }
     }
 
     @ViewBuilder
     private func artwork(_ document: PlaylistDocument) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        Group {
             if let image = model.artworkImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .accessibilityLabel("Playlist artwork for \(document.playlist.title)")
+                Button {
+                    model.showCollage = true
+                } label: {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Playlist artwork")
+                .accessibilityHint("Opens the artwork full screen")
             } else {
                 ZStack {
                     Theme.cover
@@ -78,114 +93,141 @@ struct PlaylistView: View {
                 .frame(height: 220)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            Text("Playlist artwork for \(model.titleDraft.isEmpty ? document.playlist.title : model.titleDraft)")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(Theme.ink)
-            if let url = model.shareLink?.url, let link = URL(string: url) {
-                Link(url, destination: link)
-                    .font(.footnote)
-                    .foregroundColor(Theme.accent)
-            } else {
-                Text("The playlist link will appear here when it can be saved.")
-                    .font(.footnote)
-                    .foregroundColor(Theme.inkSoft)
-            }
+        }
+        .fullScreenCover(isPresented: $model.showCollage) {
+            CollageViewer()
         }
     }
 
     @ViewBuilder
     private func actions(_ document: PlaylistDocument) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if document.recipient == nil {
-                Text("Playlist name")
-                    .font(.subheadline.weight(.semibold))
-                TextField("Playlist name", text: $model.titleDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .submitLabel(.done)
-                    .onSubmit { model.commitTitle() }
-                    .onChange(of: model.titleDraft) { value in
-                        if value.count > 80 { model.titleDraft = String(value.prefix(80)) }
+        if !model.savedNote.isEmpty || model.savedURL != nil {
+            VStack(alignment: .leading, spacing: 12) {
+                if !model.savedNote.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(model.savedNote)
+                            .font(.subheadline)
+                            .foregroundColor(Theme.ink)
+                        Text(document.library.coverTip)
+                            .font(.footnote)
+                            .foregroundColor(Theme.inkSoft)
                     }
-            }
-            Button("Save to Apple Music") {
-                Task { await model.save(playback: playback) }
-            }
-            .buttonStyle(PrimaryButtonStyle(enabled: !model.isWorking && !document.playlist.hits.isEmpty))
-            .disabled(model.isWorking || document.playlist.hits.isEmpty)
-            Button("Share") {
-                Task { await model.share() }
-            }
-            .buttonStyle(SecondaryButtonStyle())
-            .disabled(model.isWorking || document.playlist.hits.isEmpty)
-            Text("The link includes every number one hit from \(document.playlist.startYear) through \(document.playlist.endYear).")
-                .font(.footnote)
-                .foregroundColor(Theme.inkSoft)
-            if !model.status.isEmpty {
-                Text(model.status)
-                    .font(.subheadline)
-                    .foregroundColor(Theme.inkSoft)
-            }
-            if !model.savedNote.isEmpty {
-                Text(model.savedNote)
-                    .font(.subheadline)
-                    .foregroundColor(Theme.ink)
-                Text(document.library.coverTip)
-                    .font(.footnote)
-                    .foregroundColor(Theme.inkSoft)
-            }
-            if let savedURL = model.savedURL {
-                Link("Open the saved playlist", destination: savedURL)
-                    .font(.subheadline.weight(.semibold))
-            }
-            if let error = model.playlistError {
-                Text(error)
-                    .font(.subheadline)
-                    .foregroundColor(Theme.dangerInk)
-                    .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.dangerWash)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-        }
-    }
-
-    private func genreBar(_ document: PlaylistDocument) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Genres")
-                .font(.subheadline.weight(.semibold))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    genreChip("All", selected: model.selectedGenres.isEmpty) {
-                        Task { await model.clearGenres() }
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.dismissSavedPrompt() }
+                }
+                if model.savedURL != nil {
+                    Button("Open the saved playlist") {
+                        model.openSavedPlaylist()
                     }
-                    ForEach(document.availableGenres, id: \.self) { genre in
-                        genreChip(genre, selected: model.selectedGenres.contains(where: { $0.caseInsensitiveCompare(genre) == .orderedSame })) {
-                            Task { await model.toggleGenre(genre) }
-                        }
-                    }
+                    .font(.subheadline.weight(.semibold))
                 }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24).onEnded { value in
+                    if abs(value.translation.width) > 40 || abs(value.translation.height) > 40 {
+                        model.dismissSavedPrompt()
+                    }
+                }
+            )
+            .accessibilityAction(named: "Dismiss") { model.dismissSavedPrompt() }
         }
     }
 
-    private func genreChip(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .foregroundColor(selected ? Theme.onAccent : Theme.ink)
-            .background(selected ? Theme.accent : Theme.surface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(Theme.line, lineWidth: selected ? 0 : 1))
+    private var playlistDock: some View {
+        let canAct = !model.isWorking && !(model.document?.playlist.hits.isEmpty ?? true)
+        return VStack(spacing: 8) {
+            if let error = model.playlistError {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundColor(Theme.dangerInk)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if !model.status.isEmpty {
+                Text(model.status)
+                    .font(.caption2)
+                    .foregroundColor(Theme.inkSoft)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            if model.showMusicSettings {
+                Button("Open Settings") { model.openAppSettings() }
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .foregroundColor(Theme.ink)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            HStack(spacing: 0) {
+                dockItem("Cover Flow", symbol: "square.stack.fill", selected: model.browse == .flow, enabled: true) {
+                    model.chooseBrowse(.flow)
+                }
+                dockItem("List View", symbol: "list.bullet", selected: model.browse == .list, enabled: true) {
+                    model.chooseBrowse(.list)
+                }
+                dockItem(
+                    "Apple Music",
+                    symbol: "applelogo",
+                    selected: false,
+                    enabled: canAct,
+                    accessibilityLabel: "Save to Apple Music"
+                ) {
+                    model.showAppleMusicSave = true
+                }
+                dockItem("Share", symbol: "square.and.arrow.up", selected: false, enabled: canAct) {
+                    Task { await model.share() }
+                }
+            }
+            .padding(.vertical, 7)
+            .padding(.horizontal, 4)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().stroke(Theme.line, lineWidth: 0.5))
+            .shadow(color: Color.black.opacity(0.14), radius: 16, y: 6)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
     }
 
-    private var viewToggle: some View {
-        HStack(spacing: 8) {
-            genreChip("Cover Flow", selected: model.browse == .flow) { model.chooseBrowse(.flow) }
-            genreChip("List", selected: model.browse == .list) { model.chooseBrowse(.list) }
+    private func dockItem(
+        _ title: String,
+        symbol: String,
+        selected: Bool,
+        enabled: Bool,
+        accessibilityLabel: String? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(height: 24)
+                Text(title)
+                    .font(.system(size: 9, weight: selected ? .semibold : .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity)
+            .foregroundColor(selected ? Theme.accent : Theme.ink)
+            .opacity(enabled ? 1 : 0.38)
+            .contentShape(Rectangle())
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("How to browse songs")
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .disabled(!enabled)
+        .accessibilityLabel(accessibilityLabel ?? title)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     private func recipientCard(_ recipient: RecipientCopy, year: Int) -> some View {
@@ -216,7 +258,7 @@ struct PlaylistView: View {
             }
             .buttonStyle(PrimaryButtonStyle(enabled: model.validYear != nil && !model.isWorking))
             .disabled(model.validYear == nil || model.isWorking)
-            Text("Class of \(year) is the playlist you opened. Build uses the year above.")
+            Text("Class of \(YearWindow.digits(year)) is the playlist you opened. Build uses the year above.")
                 .font(.footnote)
                 .foregroundColor(Theme.inkSoft)
         }
@@ -234,7 +276,7 @@ private struct YearSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\(chapter.year) · \(chapter.hits.count) \(chapter.hits.count == 1 ? "hit" : "hits")")
+            Text("\(YearWindow.digits(chapter.year)) · \(chapter.hits.count) \(chapter.hits.count == 1 ? "hit" : "hits")")
                 .font(.title2.weight(.bold))
                 .foregroundColor(Theme.ink)
             Text(chapter.story.summary)

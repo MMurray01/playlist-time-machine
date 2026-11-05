@@ -41,6 +41,7 @@ targets:
     scheme:
       testTargets:
         - PlaylistTimeMachineTests
+        - PlaylistTimeMachineUITests
   PlaylistTimeMachineTests:
     type: bundle.unit-test
     platform: iOS
@@ -52,4 +53,16 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.abeba.playlisttimemachine.tests
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+  PlaylistTimeMachineUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: PlaylistTimeMachineUITests
+    dependencies:
+      - target: PlaylistTimeMachine
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.abeba.playlisttimemachine.uitests
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"

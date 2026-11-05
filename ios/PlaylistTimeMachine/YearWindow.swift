@@ -34,12 +34,12 @@ enum YearWindow {
 
     static func message(_ year: Int, limits: YearLimits, nowYear: Int = currentYear()) -> String {
         if year > nowYear {
-            return "Use the year you graduated high school. \(year) hasn’t happened yet."
+            return "Use the year you graduated high school. \(digits(year)) hasn’t happened yet."
         }
         if year > limits.max || year < limits.min {
-            return "The chart library doesn’t cover the years around \(year). Use a year from \(limits.min) through \(limits.max)."
+            return "The chart library doesn’t cover the years around \(digits(year)). Use a year from \(digits(limits.min)) through \(digits(limits.max))."
         }
-        return "Enter the year you graduated high school, from \(limits.min) through \(limits.max)."
+        return "Enter the year you graduated high school, from \(digits(limits.min)) through \(digits(limits.max))."
     }
 
     static func emptyChartMessage(_ year: Int) -> String {
@@ -50,12 +50,17 @@ enum YearWindow {
         (graduationYear - yearsBefore, graduationYear + yearsAfter)
     }
 
+    /// Years are written as 1985, never with a thousands separator.
+    static func digits(_ year: Int) -> String {
+        String(year)
+    }
+
     static func defaultTitle(_ graduationYear: Int) -> String {
-        "Class of \(graduationYear)"
+        "Class of \(digits(graduationYear))"
     }
 
     static func description(start: Int, end: Int) -> String {
-        "Number one hits from \(start) through \(end), the popular songs of the time. Made at playlisttimemachine.com"
+        "Number one hits from \(digits(start)) through \(digits(end)), the popular songs of the time. Made at playlisttimemachine.com"
     }
 
     static func clipTitle(_ value: String) -> String {
