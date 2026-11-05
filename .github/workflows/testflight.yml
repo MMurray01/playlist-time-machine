@@ -165,55 +165,35 @@ jobs:
         if: steps.secrets.outputs.present == 'true'
         run: python3 -u .github/scripts/asc_upload.py --check
 
-      # CI creates an Apple Development certificate on each archive. Extras are revoked first.
-      - name: Free a development certificate if the account is full
-        if: steps.secrets.outputs.present == 'true'
-        run: python3 -u .github/scripts/asc_certs.py
-
       - name: Archive for App Store Connect
         if: steps.secrets.outputs.present == 'true'
         working-directory: ios
         run: |
           echo "Build number: ${{ github.run_number }}"
-          # Automatic signing needs one registered device before it can create
-          # a development profile. Retry briefly while that registration lands.
-          set +e
-          for attempt in 1 2 3 4 5 6 7 8; do
-            xcodebuild \
-              -project PlaylistTimeMachine.xcodeproj \
-              -scheme PlaylistTimeMachine \
-              -configuration Release \
-              -destination "generic/platform=iOS" \
-              -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
-              -allowProvisioningUpdates \
-              -authenticationKeyPath "${KEY_PATH}" \
-              -authenticationKeyID "${ASC_KEY_ID}" \
-              -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
-              CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-              DEVELOPMENT_TEAM=WS2R3SYV4W \
-              CODE_SIGN_STYLE=Automatic \
-              archive > "${RUNNER_TEMP}/archive.log" 2>&1
-            status=$?
-            cat "${RUNNER_TEMP}/archive.log"
-            if [ "${status}" -eq 0 ]; then
-              exit 0
-            fi
-            if grep -q "no devices" "${RUNNER_TEMP}/archive.log" && [ "${attempt}" -lt 8 ]; then
-              echo "No registered device yet (attempt ${attempt}). Waiting for the iPhone registration."
-              sleep 45
-              continue
-            fi
-            if grep -q "maximum number of certificates" "${RUNNER_TEMP}/archive.log" && [ "${attempt}" -lt 3 ]; then
-              echo "Apple reported the certificate limit (attempt ${attempt}). Waiting before trying again."
-              sleep 20
-              continue
-            fi
-            exit "${status}"
-          done
+          # Archive unsigned. CODE_SIGN_STYLE=Automatic with -allowProvisioningUpdates
+          # mints a new Apple Development certificate on every ephemeral runner.
+          # This step has no App Store Connect key and no -allowProvisioningUpdates,
+          # so it cannot create or revoke certificates. Export applies the existing
+          # Apple Distribution certificate.
+          xcodebuild \
+            -project PlaylistTimeMachine.xcodeproj \
+            -scheme PlaylistTimeMachine \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "${RUNNER_TEMP}/PlaylistTimeMachine.xcarchive" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            DEVELOPMENT_TEAM=WS2R3SYV4W \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
 
       - name: Export and upload to App Store Connect
         if: steps.secrets.outputs.present == 'true'
         run: |
+          # Only signing step. method app-store-connect reuses the cloud-managed
+          # Apple Distribution certificate. It does not create an Apple Development
+          # certificate. The codesign check below requires Authority=Apple Distribution.
           cat > "${RUNNER_TEMP}/ExportOptions.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
