@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useRef, useState } from "react"
+import { GetTheAppLink } from "@/components/app-store-link"
 import { trackEvent } from "@/lib/analytics"
 import { shareFailureNote } from "@/lib/share/failure"
 import {
@@ -293,6 +294,9 @@ export function ShareLaunch({
               </a>
             </li>
           </ul>
+          <div className="share-app">
+            <GetTheAppLink />
+          </div>
 
           <section className="share-story" aria-label="Story image" aria-busy={imageBlob ? undefined : true}>
             <h3>Story image</h3>

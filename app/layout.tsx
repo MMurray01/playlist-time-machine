@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Inter } from "next/font/google"
 import { SiteFooter } from "@/components/site-footer"
 import { tokens } from "@/lib/playlist/tokens"
+import { APP_STORE_ID } from "@/lib/site/app-store"
 import { HOME_DESCRIPTION, SITE_URL, siteMetadata } from "@/lib/site/metadata"
 import "./globals.css"
 
@@ -40,6 +41,7 @@ export const metadata: Metadata = {
     description: HOME_DESCRIPTION,
     path: "/",
   }),
+  itunes: { appId: APP_STORE_ID },
   ...(googleVerification ? { verification: { google: googleVerification } } : {}),
 }
 

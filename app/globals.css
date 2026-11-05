@@ -240,6 +240,26 @@ main.sheet-screen .home-stage {
   line-height: 1.6;
 }
 
+.app-store-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 1.15rem;
+  padding: 0;
+  line-height: 0;
+  background: transparent;
+}
+
+.app-store-badge img {
+  display: block;
+  width: 120px;
+  height: 40px;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
 .kicker {
   color: var(--ptm-ink-soft);
   font-size: 0.875rem;
@@ -1462,7 +1482,8 @@ main.sheet-screen .home-stage {
 
 .share-actions a,
 .share-actions button,
-.share-channel-actions button {
+.share-channel-actions button,
+.share-app a {
   display: flex;
   align-items: center;
   width: 100%;
@@ -1480,7 +1501,8 @@ main.sheet-screen .home-stage {
 
 .share-actions a:hover,
 .share-actions button:hover:not(:disabled),
-.share-channel-actions button:hover:not(:disabled) {
+.share-channel-actions button:hover:not(:disabled),
+.share-app a:hover {
   border-color: var(--ptm-ink);
 }
 
@@ -1488,6 +1510,10 @@ main.sheet-screen .home-stage {
 .share-channel-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.share-app {
+  margin-top: 0.75rem;
 }
 
 .share-story {
@@ -1649,7 +1675,8 @@ main.sheet-screen .home-stage {
 }
 
 .collage-status,
-.collage-note {
+.collage-note,
+.collage-app {
   margin-top: 0.75rem;
 }
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { AppStoreBadge } from "@/components/app-store-link"
 import { trackEvent } from "@/lib/analytics"
 import { SHARE_PAGE_REF, recipientPrompt, recipientQuestion } from "@/lib/share/recipient"
 import { graduationWindow, graduationYearMessage, isValidGraduationYear } from "@/lib/playlist/window"
@@ -154,6 +155,7 @@ export function MakeYours({
             Make my playlist
           </button>
         </form>
+        <AppStoreBadge />
       </section>
 
       {children}
@@ -176,6 +178,7 @@ export function MakeYours({
             Make my playlist
           </button>
         </form>
+        <AppStoreBadge />
       </section>
 
       <div className="make-sticky" hidden={!showSticky}>

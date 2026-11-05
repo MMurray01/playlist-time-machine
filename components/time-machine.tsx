@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { generatePlaylistAction } from "@/actions/playlist-actions"
 import { trackEvent } from "@/lib/analytics"
+import { AppStoreBadge } from "@/components/app-store-link"
 import { FromSpotify } from "@/components/from-spotify"
 import { HeroWall } from "@/components/hero-wall"
 import { PlaylistDocument } from "@/components/playlist-document"
@@ -144,6 +145,7 @@ export function TimeMachine({
             Your first dance, graduation, those long summer nights. Enter your high school graduation year and get
             the number one hits from the eleven years that shaped you, the popular songs of the time.
           </p>
+          <AppStoreBadge />
         </header>
 
         <form onSubmit={onSubmit} aria-busy={loading}>
