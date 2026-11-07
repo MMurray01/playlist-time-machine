@@ -164,6 +164,47 @@ final class PlaylistTimeMachineTests: XCTestCase {
         XCTAssertEqual(document.library.name, "Class of 1984 · Playlist Time Machine")
     }
 
+    func testLibraryWriteUsesTheLibraryCapability() {
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: true, canBecomeSubscriber: false), .write)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: true, canBecomeSubscriber: true), .write)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: false, canBecomeSubscriber: true), .needsSubscription)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: false, canBecomeSubscriber: false), .libraryUnavailable)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: nil, canBecomeSubscriber: nil), .checkFailed)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: nil, canBecomeSubscriber: true), .checkFailed)
+        XCTAssertNil(LibrarySavePolicy.blockMessage(hasCloudLibraryEnabled: true, canBecomeSubscriber: false))
+        let blocked = LibrarySavePolicy.blockMessage(hasCloudLibraryEnabled: false, canBecomeSubscriber: true)
+        XCTAssertTrue(blocked?.contains("Nothing was saved.") == true)
+        XCTAssertNotEqual(blocked, LibrarySavePolicy.savedToast)
+        XCTAssertEqual(
+            LibrarySavePolicy.blockMessage(hasCloudLibraryEnabled: nil, canBecomeSubscriber: nil),
+            LibrarySavePolicy.checkFailedMessage
+        )
+    }
+
+    func testPartialLibraryWriteStaysOnePlaylist() {
+        XCTAssertFalse(LibrarySavePolicy.keepReturnedPlaylist(created: false, added: 0, requested: 12))
+        XCTAssertTrue(LibrarySavePolicy.keepReturnedPlaylist(created: true, added: 100, requested: 140))
+        XCTAssertTrue(LibrarySavePolicy.stoppedEarly(created: true, added: 100, requested: 140))
+        XCTAssertFalse(LibrarySavePolicy.stoppedEarly(created: true, added: 140, requested: 140))
+        XCTAssertFalse(LibrarySavePolicy.stoppedEarly(created: false, added: 0, requested: 140))
+        let note = LibrarySavePolicy.savedNote(count: 100, requested: 140, missingCount: 2, incomplete: true)
+        XCTAssertTrue(note.contains("Saved 100 of 140 songs to Apple Music."))
+        XCTAssertTrue(note.contains("2 songs were not in Apple Music."))
+        XCTAssertTrue(note.contains("Saving again creates another copy."))
+        XCTAssertEqual(
+            LibrarySavePolicy.savedNote(count: 10, requested: 12, missingCount: 2, incomplete: false),
+            "Saved 10 of 12 songs to Apple Music. 2 songs were not in Apple Music."
+        )
+        XCTAssertEqual(
+            LibrarySavePolicy.savedNote(count: 11, requested: 12, missingCount: 1, incomplete: false),
+            "Saved 11 of 12 songs to Apple Music. 1 song was not in Apple Music."
+        )
+        XCTAssertEqual(LibrarySavePolicy.successToast(incomplete: false), "Saved to Apple Music")
+        XCTAssertNotEqual(LibrarySavePolicy.successToast(incomplete: true), LibrarySavePolicy.successToast(incomplete: false))
+        XCTAssertEqual(LibrarySavePolicy.checkingLabel, "Checking Apple Music…")
+        XCTAssertNotEqual(LibrarySavePolicy.checkingLabel, LibrarySavePolicy.savingLabel)
+    }
+
     func testDetachedLibrarySaveSurvivesCancellingTheSheetTask() async {
         let started = expectation(description: "library save started")
         let finished = expectation(description: "library save finished")

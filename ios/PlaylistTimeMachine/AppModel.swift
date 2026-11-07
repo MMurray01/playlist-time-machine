@@ -24,6 +24,9 @@ final class AppModel: ObservableObject {
     @Published var showMusicSettings = false
     @Published var isWorking = false
     @Published var appleMusicSavePhase: AppleMusicSavePhase = .editing
+    @Published var appleMusicSaveDetail = ""
+    @Published var appleMusicSaveIncomplete = false
+    @Published var appleMusicOfferReady = false
     @Published var artworkImage: UIImage?
     @Published var showCollage = false
     @Published var showAppleMusicSave = false
@@ -172,29 +175,50 @@ final class AppModel: ObservableObject {
     func beginAppleMusicSave(playback: PlaybackController) {
         guard let document else { return }
         guard appleMusicSaveTask == nil else { return }
+        if appleMusicSaveIncomplete {
+            appleMusicSavePhase = .saved
+            if savedNote.isEmpty { savedNote = appleMusicSaveDetail }
+            return
+        }
         isWorking = true
         appleMusicSavePhase = .saving
+        appleMusicSaveDetail = LibrarySavePolicy.checkingLabel
+        appleMusicOfferReady = false
         playlistError = nil
         showMusicSettings = false
         dismissSavedPrompt()
         status = ""
         savePlayback = playback
+        UIAccessibility.post(notification: .announcement, argument: LibrarySavePolicy.checkingLabel)
         let hits = playlistHits.isEmpty ? document.playlist.hits : playlistHits
         let name = playlistName()
-        let fallbackDescription = libraryDescription.isEmpty ? document.library.description : libraryDescription
+        // The share URL is optional. The description already on hand is enough.
+        // Waiting here on POST /api/share held up the capability check and the write.
+        let description = libraryDescription.isEmpty ? document.library.description : libraryDescription
+        let songID = hits.compactMap(\.catalog?.catalogId).first
         // Detached from the sheet. Dismissing the view cancels tasks created in
         // that view, and this write has to keep running after the X is tapped.
         appleMusicSaveTask = Task.detached { [weak self] in
             guard let self else { return }
-            let description = await self.prepareLibraryDescription(fallback: fallbackDescription)
-            let outcome = await LibrarySaver.save(hits: hits, name: name, description: description)
-            await self.recordAppleMusicSave(outcome)
+            let access = await LibrarySaver.access(songID: songID)
+            switch access {
+            case .allowed:
+                await self.markAppleMusicSaving()
+                let outcome = await LibrarySaver.save(hits: hits, name: name, description: description)
+                await self.recordAppleMusicSave(outcome)
+            case .needsOffer(let id):
+                await self.recordAppleMusicSave(.needsOffer(songID: id))
+            case .notAuthorized:
+                await self.recordAppleMusicSave(.notAuthorized)
+            case .failed(let message):
+                await self.recordAppleMusicSave(.failed(message))
+            }
         }
     }
 
-    private func prepareLibraryDescription(fallback: String) async -> String {
-        _ = await ensureShare()
-        return libraryDescription.isEmpty ? fallback : libraryDescription
+    private func markAppleMusicSaving() {
+        appleMusicSaveDetail = LibrarySavePolicy.savingLabel
+        UIAccessibility.post(notification: .announcement, argument: LibrarySavePolicy.savingLabel)
     }
 
     private func recordAppleMusicSave(_ outcome: LibrarySaveOutcome) {
@@ -202,29 +226,44 @@ final class AppModel: ObservableObject {
         appleMusicSaveTask = nil
         let playback = savePlayback
         switch outcome {
-        case .saved(let count, let requested, let url, let missing):
+        case .saved(let count, let requested, let url, let missing, let incomplete):
             savedURL = url
-            let missingNote = missing.isEmpty ? "" : " \(missing.count) \(missing.count == 1 ? "song was" : "songs were") not in Apple Music."
-            savedNote = "Saved \(count) of \(requested) songs to Apple Music.\(missingNote)"
+            appleMusicSaveIncomplete = incomplete
+            savedNote = LibrarySavePolicy.savedNote(
+                count: count,
+                requested: requested,
+                missingCount: missing.count,
+                incomplete: incomplete
+            )
+            appleMusicSaveDetail = savedNote
             playlistError = nil
             showMusicSettings = false
+            appleMusicOfferReady = false
             status = ""
             appleMusicSavePhase = .saved
-            showToast("Saved to Apple Music", isError: false)
+            showToast(LibrarySavePolicy.successToast(incomplete: incomplete), isError: false)
+            UIAccessibility.post(notification: .announcement, argument: savedNote)
             scheduleSavedPromptDismissal()
         case .needsOffer(let songID):
             playback?.offerSongID = songID
             playback?.offerMessage = .addMusic
-            playback?.showOffer = true
+            playback?.showOffer = false
+            appleMusicOfferReady = true
+            playlistError = LibrarySavePolicy.needsSubscriptionMessage
+            appleMusicSaveDetail = LibrarySavePolicy.needsSubscriptionMessage
+            showMusicSettings = false
             status = ""
-            appleMusicSavePhase = .editing
+            appleMusicSavePhase = .failed
+            UIAccessibility.post(notification: .announcement, argument: LibrarySavePolicy.needsSubscriptionMessage)
         case .notAuthorized:
             showMusicSettings = true
+            appleMusicOfferReady = false
             playlistError = "Apple Music access is off, so the playlist was not saved. 30-second previews still play here, and Listen on Apple Music still opens the song. Allow Apple Music for Playlist Time Machine in Settings to save it."
             status = ""
             appleMusicSavePhase = .failed
             showToast("Apple Music could not save the playlist.", isError: true)
         case .failed(let message):
+            appleMusicOfferReady = false
             playlistError = message
             status = ""
             appleMusicSavePhase = .failed
@@ -290,6 +329,9 @@ final class AppModel: ObservableObject {
         playlistError = nil
         showMusicSettings = false
         appleMusicSavePhase = .editing
+        appleMusicSaveDetail = ""
+        appleMusicSaveIncomplete = false
+        appleMusicOfferReady = false
         status = ""
         clearTransientNotices()
         selectedHit = nil
