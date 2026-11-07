@@ -50,8 +50,17 @@ struct SaveToAppleMusicSheet: View {
                     }
 
                     if model.appleMusicSavePhase == .failed {
-                        Button("Retry") { startSave() }
+                        if model.appleMusicOfferReady {
+                            Button("See Apple Music subscription") {
+                                playback.showOffer = true
+                            }
                             .buttonStyle(PrimaryButtonStyle())
+                            Button("Retry") { startSave() }
+                                .buttonStyle(SecondaryButtonStyle())
+                        } else {
+                            Button("Retry") { startSave() }
+                                .buttonStyle(PrimaryButtonStyle())
+                        }
                     } else if model.appleMusicSavePhase == .editing {
                         Button("Save to Apple Music") { startSave() }
                             .buttonStyle(PrimaryButtonStyle(enabled: canSave))
@@ -80,7 +89,9 @@ struct SaveToAppleMusicSheet: View {
         .presentationDetents([.medium, .large])
         .onAppear {
             snapshot = model.titleDraft
-            if model.appleMusicSavePhase != .saving {
+            if model.appleMusicSaveIncomplete {
+                model.appleMusicSavePhase = .saved
+            } else if model.appleMusicSavePhase != .saving && model.appleMusicSavePhase != .failed {
                 model.appleMusicSavePhase = .editing
             }
         }
@@ -95,12 +106,19 @@ struct SaveToAppleMusicSheet: View {
     private var saveStatus: some View {
         switch model.appleMusicSavePhase {
         case .saving:
-            Text("Saving to Apple Music.  Please close (X).")
-                .font(.body.weight(.semibold))
-                .foregroundColor(Theme.ink)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: 12) {
+                ProgressView()
+                    .accessibilityHidden(true)
+                Text(model.appleMusicSaveDetail)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(model.appleMusicSaveDetail)
+            .accessibilityAddTraits(.updatesFrequently)
         case .saved:
-            Text("Saved to Apple Music")
+            Text(model.appleMusicSaveIncomplete ? model.appleMusicSaveDetail : "Saved to Apple Music")
                 .font(.body.weight(.semibold))
                 .foregroundColor(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)

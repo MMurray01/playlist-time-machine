@@ -2,23 +2,49 @@ import Foundation
 import MusicKit
 
 enum LibrarySaveOutcome {
-    case saved(count: Int, requested: Int, url: URL?, missing: [String])
+    case saved(count: Int, requested: Int, url: URL?, missing: [String], incomplete: Bool)
+    case needsOffer(songID: String?)
+    case notAuthorized
+    case failed(String)
+}
+
+enum LibraryAccess {
+    case allowed
     case needsOffer(songID: String?)
     case notAuthorized
     case failed(String)
 }
 
 enum LibrarySaver {
-    static func save(hits: [ApiHit], name: String, description: String) async -> LibrarySaveOutcome {
+    /// Authorization and the library-edit capability. This does not create a playlist.
+    static func access(songID: String?) async -> LibraryAccess {
         let authorization = await MusicAuthorization.request()
         guard authorization == .authorized else { return .notAuthorized }
 
-        if let subscription = try? await MusicSubscription.current {
-            if !subscription.canPlayCatalogContent && subscription.canBecomeSubscriber {
-                return .needsOffer(songID: hits.compactMap(\.catalog?.catalogId).first)
-            }
+        let decision: LibraryWriteDecision
+        do {
+            let subscription = try await MusicSubscription.current
+            decision = LibrarySavePolicy.decide(
+                hasCloudLibraryEnabled: subscription.hasCloudLibraryEnabled,
+                canBecomeSubscriber: subscription.canBecomeSubscriber
+            )
+        } catch {
+            decision = LibrarySavePolicy.decide(hasCloudLibraryEnabled: nil, canBecomeSubscriber: nil)
         }
 
+        switch decision {
+        case .write:
+            return .allowed
+        case .needsSubscription:
+            return .needsOffer(songID: songID)
+        case .libraryUnavailable:
+            return .failed(LibrarySavePolicy.libraryUnavailableMessage)
+        case .checkFailed:
+            return .failed(LibrarySavePolicy.checkFailedMessage)
+        }
+    }
+
+    static func save(hits: [ApiHit], name: String, description: String) async -> LibrarySaveOutcome {
         var resolved: [Song] = []
         var missing: [String] = []
         let identified = hits.filter { $0.catalog?.catalogId != nil }
@@ -44,35 +70,61 @@ enum LibrarySaver {
             return .failed(missing.isEmpty ? "Apple Music could not be checked. Try again." : "Apple Music didn’t have these songs, so nothing was saved.")
         }
 
-        do {
-            let playlist = try await create(name: name, description: description, songs: resolved)
-            return .saved(count: resolved.count, requested: hits.count, url: playlist.url, missing: missing)
-        } catch {
+        switch await create(name: name, description: description, songs: resolved) {
+        case .notCreated:
             return .failed("Apple Music could not save the playlist.")
+        case .stored(let playlist, added: let added):
+            let incomplete = LibrarySavePolicy.stoppedEarly(created: true, added: added, requested: resolved.count)
+            guard LibrarySavePolicy.keepReturnedPlaylist(created: true, added: added, requested: resolved.count) else {
+                return .failed("Apple Music could not save the playlist.")
+            }
+            return .saved(
+                count: added,
+                requested: hits.count,
+                url: playlist.url,
+                missing: missing,
+                incomplete: incomplete
+            )
         }
     }
 
-    private static func create(name: String, description: String, songs: [Song]) async throws -> Playlist {
+    private enum CreateResult {
+        case stored(Playlist, added: Int)
+        case notCreated
+    }
+
+    private static func create(name: String, description: String, songs: [Song]) async -> CreateResult {
         let firstCount = min(100, songs.count)
         let first = Array(songs.prefix(firstCount))
-        let playlist = try await MusicLibrary.shared.createPlaylist(
-            name: name,
-            description: description,
-            authorDisplayName: "Playlist Time Machine",
-            items: first
-        )
-        guard songs.count > firstCount else { return playlist }
-        // createPlaylist returns after the first 100 songs, which is why the playlist
-        // appears immediately. add() accepts one song, so the old loop waited on a
-        // round trip per remaining hit. edit() replaces the track list in one call.
+        let playlist: Playlist
         do {
-            return try await MusicLibrary.shared.edit(playlist, items: songs)
+            playlist = try await MusicLibrary.shared.createPlaylist(
+                name: name,
+                description: description,
+                authorDisplayName: "Playlist Time Machine",
+                items: first
+            )
+        } catch {
+            return .notCreated
+        }
+        guard songs.count > firstCount else { return .stored(playlist, added: songs.count) }
+        // createPlaylist returns after the first 100 songs. edit() replaces that
+        // list in one call. add() is the fallback and accepts one song.
+        do {
+            let edited = try await MusicLibrary.shared.edit(playlist, items: songs)
+            return .stored(edited, added: songs.count)
         } catch {
             var current = playlist
+            var added = firstCount
             for song in songs.dropFirst(firstCount) {
-                current = try await MusicLibrary.shared.add(song, to: current)
+                do {
+                    current = try await MusicLibrary.shared.add(song, to: current)
+                    added += 1
+                } catch {
+                    return .stored(current, added: added)
+                }
             }
-            return current
+            return .stored(current, added: added)
         }
     }
 }

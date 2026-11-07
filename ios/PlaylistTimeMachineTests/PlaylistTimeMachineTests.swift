@@ -164,6 +164,91 @@ final class PlaylistTimeMachineTests: XCTestCase {
         XCTAssertEqual(document.library.name, "Class of 1984 · Playlist Time Machine")
     }
 
+    func testLibraryWriteUsesTheLibraryCapability() {
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: true, canBecomeSubscriber: false), .write)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: true, canBecomeSubscriber: true), .write)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: false, canBecomeSubscriber: true), .needsSubscription)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: false, canBecomeSubscriber: false), .libraryUnavailable)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: nil, canBecomeSubscriber: nil), .checkFailed)
+        XCTAssertEqual(LibrarySavePolicy.decide(hasCloudLibraryEnabled: nil, canBecomeSubscriber: true), .checkFailed)
+        XCTAssertNil(LibrarySavePolicy.blockMessage(hasCloudLibraryEnabled: true, canBecomeSubscriber: false))
+        let blocked = LibrarySavePolicy.blockMessage(hasCloudLibraryEnabled: false, canBecomeSubscriber: true)
+        XCTAssertTrue(blocked?.contains("Nothing was saved.") == true)
+        XCTAssertNotEqual(blocked, LibrarySavePolicy.savedToast)
+        XCTAssertEqual(
+            LibrarySavePolicy.blockMessage(hasCloudLibraryEnabled: nil, canBecomeSubscriber: nil),
+            LibrarySavePolicy.checkFailedMessage
+        )
+    }
+
+    func testPartialLibraryWriteStaysOnePlaylist() {
+        XCTAssertFalse(LibrarySavePolicy.keepReturnedPlaylist(created: false, added: 0, requested: 12))
+        XCTAssertTrue(LibrarySavePolicy.keepReturnedPlaylist(created: true, added: 100, requested: 140))
+        XCTAssertTrue(LibrarySavePolicy.stoppedEarly(created: true, added: 100, requested: 140))
+        XCTAssertFalse(LibrarySavePolicy.stoppedEarly(created: true, added: 140, requested: 140))
+        XCTAssertFalse(LibrarySavePolicy.stoppedEarly(created: false, added: 0, requested: 140))
+        let note = LibrarySavePolicy.savedNote(count: 100, requested: 140, missingCount: 2, incomplete: true)
+        XCTAssertTrue(note.contains("Saved 100 of 140 songs to Apple Music."))
+        XCTAssertTrue(note.contains("2 songs were not in Apple Music."))
+        XCTAssertTrue(note.contains("Saving again creates another copy."))
+        XCTAssertEqual(
+            LibrarySavePolicy.savedNote(count: 10, requested: 12, missingCount: 2, incomplete: false),
+            "Saved 10 of 12 songs to Apple Music. 2 songs were not in Apple Music."
+        )
+        XCTAssertEqual(
+            LibrarySavePolicy.savedNote(count: 11, requested: 12, missingCount: 1, incomplete: false),
+            "Saved 11 of 12 songs to Apple Music. 1 song was not in Apple Music."
+        )
+        XCTAssertEqual(LibrarySavePolicy.successToast(incomplete: false), "Saved to Apple Music")
+        XCTAssertNotEqual(LibrarySavePolicy.successToast(incomplete: true), LibrarySavePolicy.successToast(incomplete: false))
+        XCTAssertEqual(LibrarySavePolicy.checkingLabel, "Checking Apple Music…")
+        XCTAssertNotEqual(LibrarySavePolicy.checkingLabel, LibrarySavePolicy.savingLabel)
+    }
+
+    func testStaleSaveDoesNotClaimTheNextPlaylist() {
+        let idle = AppleMusicSaveTrack.noTask
+        let first = AppleMusicSaveTrack.begin(taskTicket: idle, generation: 1)
+        XCTAssertEqual(first, 1)
+        XCTAssertEqual(AppleMusicSaveTrack.begin(taskTicket: first, generation: 1), first)
+
+        let released = AppleMusicSaveTrack.release()
+        XCTAssertEqual(released, idle)
+        let second = AppleMusicSaveTrack.begin(taskTicket: released, generation: 2)
+        XCTAssertEqual(second, 2)
+
+        let legacyClearsTheNewTask = idle
+        let kept = AppleMusicSaveTrack.nextTaskTicket(taskTicket: second, ticket: first, generation: 2)
+        XCTAssertEqual(kept, second)
+        XCTAssertNotEqual(kept, legacyClearsTheNewTask)
+        XCTAssertFalse(AppleMusicSaveTrack.clearsWorking(taskTicket: second, ticket: first, generation: 2))
+        XCTAssertFalse(AppleMusicSaveTrack.isCurrent(taskTicket: second, ticket: first, generation: 2))
+
+        XCTAssertTrue(AppleMusicSaveTrack.clearsWorking(taskTicket: second, ticket: second, generation: 2))
+        XCTAssertEqual(AppleMusicSaveTrack.nextTaskTicket(taskTicket: second, ticket: second, generation: 2), idle)
+
+        let samePlaylist = AppleMusicSaveTrack.begin(taskTicket: idle, generation: 4)
+        XCTAssertTrue(AppleMusicSaveTrack.isCurrent(taskTicket: samePlaylist, ticket: samePlaylist, generation: 4))
+        XCTAssertTrue(AppleMusicSaveTrack.clearsWorking(taskTicket: samePlaylist, ticket: samePlaylist, generation: 4))
+    }
+
+    func testNewDocumentDropsSaveChromeAndPrefetchDoesNotReplaceTheSaveError() {
+        XCTAssertTrue(PlaylistSaveChrome.kept(value: true, replacedDocument: false))
+        XCTAssertFalse(PlaylistSaveChrome.kept(value: true, replacedDocument: true))
+        XCTAssertFalse(PlaylistSaveChrome.clearsSaveChrome(replacedDocument: false))
+        XCTAssertTrue(PlaylistSaveChrome.clearsSaveChrome(replacedDocument: true))
+
+        let saveError = "An Apple Music subscription is required to add these songs to your library. Nothing was saved."
+        var shown = saveError
+        if ShareErrorRouting.replacesPlaylistError(explicit: false, sameDocument: true) {
+            shown = "The share link could not be saved."
+        }
+        XCTAssertEqual(shown, saveError)
+        XCTAssertFalse(ShareErrorRouting.replacesPlaylistError(explicit: true, sameDocument: false))
+        XCTAssertTrue(ShareErrorRouting.replacesPlaylistError(explicit: true, sameDocument: true))
+        let legacyAlwaysReplaces = true
+        XCTAssertNotEqual(ShareErrorRouting.replacesPlaylistError(explicit: false, sameDocument: true), legacyAlwaysReplaces)
+    }
+
     func testDetachedLibrarySaveSurvivesCancellingTheSheetTask() async {
         let started = expectation(description: "library save started")
         let finished = expectation(description: "library save finished")
