@@ -43,3 +43,29 @@ jobs:
           -quiet
           CODE_SIGNING_ALLOWED=NO
           build
+      - name: Unit tests
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          dest="$(python3 - <<'PY'
+          import json, subprocess, sys
+          raw = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"])
+          devices = json.loads(raw)["devices"]
+          for runtime, rows in devices.items():
+              if "iOS" not in runtime:
+                  continue
+              for device in rows:
+                  name = device.get("name", "")
+                  if device.get("isAvailable") and name.startswith("iPhone"):
+                      print(f"platform=iOS Simulator,id={device['udid']}")
+                      sys.exit(0)
+          sys.exit("no iPhone simulator")
+          PY
+          )"
+          xcodebuild test \
+            -project PlaylistTimeMachine.xcodeproj \
+            -scheme PlaylistTimeMachine \
+            -destination "${dest}" \
+            -only-testing:PlaylistTimeMachineTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO

@@ -44,6 +44,7 @@ final class AppModel: ObservableObject {
     private var artworkTask: Task<Void, Never>?
     private var playlistHits: [ApiHit] = []
     private var appleMusicSaveTask: Task<Void, Never>?
+    private var appleMusicSaveTicket = AppleMusicSaveTrack.noTask
     private var savePlayback: PlaybackController?
     private var toastTask: Task<Void, Never>?
     private var savedPromptTask: Task<Void, Never>?
@@ -141,7 +142,7 @@ final class AppModel: ObservableObject {
         guard let document, let artwork = document.artwork else { return nil }
         let startYear = document.playlist.startYear
         let endYear = document.playlist.endYear
-        _ = await ensureShare()
+        _ = await ensureShare(surfaceError: false)
         return await PlaylistImages.renderPrintArtwork(artwork, startYear: startYear, endYear: endYear)
     }
 
@@ -156,7 +157,7 @@ final class AppModel: ObservableObject {
         playlistError = nil
         status = "Preparing the playlist to share."
         defer { isWorking = false }
-        guard let link = await ensureShare() else { return }
+        guard let link = await ensureShare(surfaceError: true) else { return }
         let image = await PlaylistImages.renderStory(
             title: playlistName(),
             link: link.url,
@@ -174,12 +175,16 @@ final class AppModel: ObservableObject {
 
     func beginAppleMusicSave(playback: PlaybackController) {
         guard let document else { return }
-        guard appleMusicSaveTask == nil else { return }
         if appleMusicSaveIncomplete {
             appleMusicSavePhase = .saved
             if savedNote.isEmpty { savedNote = appleMusicSaveDetail }
             return
         }
+        let started = AppleMusicSaveTrack.begin(taskTicket: appleMusicSaveTicket, generation: generation)
+        if started == appleMusicSaveTicket {
+            return
+        }
+        appleMusicSaveTicket = started
         isWorking = true
         appleMusicSavePhase = .saving
         appleMusicSaveDetail = LibrarySavePolicy.checkingLabel
@@ -196,32 +201,39 @@ final class AppModel: ObservableObject {
         // Waiting here on POST /api/share held up the capability check and the write.
         let description = libraryDescription.isEmpty ? document.library.description : libraryDescription
         let songID = hits.compactMap(\.catalog?.catalogId).first
+        let ticket = started
         // Detached from the sheet. Dismissing the view cancels tasks created in
         // that view, and this write has to keep running after the X is tapped.
+        // Leaving the playlist drops this reference and ignores the result.
+        // The task itself is not cancelled.
         appleMusicSaveTask = Task.detached { [weak self] in
             guard let self else { return }
             let access = await LibrarySaver.access(songID: songID)
             switch access {
             case .allowed:
-                await self.markAppleMusicSaving()
+                await self.markAppleMusicSaving(ticket: ticket)
                 let outcome = await LibrarySaver.save(hits: hits, name: name, description: description)
-                await self.recordAppleMusicSave(outcome)
+                await self.recordAppleMusicSave(outcome, ticket: ticket)
             case .needsOffer(let id):
-                await self.recordAppleMusicSave(.needsOffer(songID: id))
+                await self.recordAppleMusicSave(.needsOffer(songID: id), ticket: ticket)
             case .notAuthorized:
-                await self.recordAppleMusicSave(.notAuthorized)
+                await self.recordAppleMusicSave(.notAuthorized, ticket: ticket)
             case .failed(let message):
-                await self.recordAppleMusicSave(.failed(message))
+                await self.recordAppleMusicSave(.failed(message), ticket: ticket)
             }
         }
     }
 
-    private func markAppleMusicSaving() {
+    private func markAppleMusicSaving(ticket: Int) {
+        guard AppleMusicSaveTrack.isCurrent(taskTicket: appleMusicSaveTicket, ticket: ticket, generation: generation) else { return }
         appleMusicSaveDetail = LibrarySavePolicy.savingLabel
         UIAccessibility.post(notification: .announcement, argument: LibrarySavePolicy.savingLabel)
     }
 
-    private func recordAppleMusicSave(_ outcome: LibrarySaveOutcome) {
+    private func recordAppleMusicSave(_ outcome: LibrarySaveOutcome, ticket: Int) {
+        let held = appleMusicSaveTicket
+        guard AppleMusicSaveTrack.clearsWorking(taskTicket: held, ticket: ticket, generation: generation) else { return }
+        appleMusicSaveTicket = AppleMusicSaveTrack.nextTaskTicket(taskTicket: held, ticket: ticket, generation: generation)
         isWorking = false
         appleMusicSaveTask = nil
         let playback = savePlayback
@@ -275,9 +287,10 @@ final class AppModel: ObservableObject {
         toastMessage = message
         toastIsError = isError
         toastTask?.cancel()
+        let ticket = generation
         toastTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 4_000_000_000)
-            guard !Task.isCancelled, self.toastMessage == message else { return }
+            guard !Task.isCancelled, ticket == self.generation, self.toastMessage == message else { return }
             self.toastMessage = nil
         }
     }
@@ -305,9 +318,10 @@ final class AppModel: ObservableObject {
 
     private func scheduleSavedPromptDismissal() {
         savedPromptTask?.cancel()
+        let ticket = generation
         savedPromptTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 4_000_000_000)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, ticket == self.generation else { return }
             savedNote = ""
             savedURL = nil
         }
@@ -320,25 +334,40 @@ final class AppModel: ObservableObject {
 
     func backToYear() {
         generation += 1
+        detachInFlightSave()
+        resetSaveChrome()
         document = nil
         playlistHits = []
         artworkImage = nil
         showCollage = false
-        showAppleMusicSave = false
         shareLink = nil
-        playlistError = nil
-        showMusicSettings = false
-        appleMusicSavePhase = .editing
-        appleMusicSaveDetail = ""
-        appleMusicSaveIncomplete = false
-        appleMusicOfferReady = false
         status = ""
         clearTransientNotices()
         selectedHit = nil
     }
 
+    /// Drops the UI reference for a save that belonged to the previous playlist.
+    /// The detached work is left running so a library write is not aborted.
+    private func detachInFlightSave() {
+        appleMusicSaveTicket = AppleMusicSaveTrack.release()
+        appleMusicSaveTask = nil
+        isWorking = false
+    }
+
+    private func resetSaveChrome() {
+        guard PlaylistSaveChrome.clearsSaveChrome(replacedDocument: true) else { return }
+        appleMusicSaveIncomplete = PlaylistSaveChrome.kept(value: appleMusicSaveIncomplete, replacedDocument: true)
+        appleMusicOfferReady = PlaylistSaveChrome.kept(value: appleMusicOfferReady, replacedDocument: true)
+        appleMusicSavePhase = .editing
+        appleMusicSaveDetail = ""
+        showMusicSettings = false
+        playlistError = nil
+        showAppleMusicSave = false
+    }
+
     private func loadShare(id: String) async {
         generation += 1
+        detachInFlightSave()
         let ticket = generation
         isBuilding = true
         homeError = nil
@@ -358,6 +387,7 @@ final class AppModel: ObservableObject {
 
     private func loadYear(_ year: Int) async {
         generation += 1
+        detachInFlightSave()
         let ticket = generation
         if document == nil { isBuilding = true } else { isWorking = true }
         homeError = nil
@@ -375,7 +405,8 @@ final class AppModel: ObservableObject {
             UserDefaults.standard.set(String(year), forKey: "ptm-graduation-year")
             yearText = String(year)
             apply(loaded)
-            Task { await self.ensureShare() }
+            let shareTicket = generation
+            Task { await self.ensureShare(surfaceError: false, documentTicket: shareTicket) }
         } catch {
             guard ticket == generation else { return }
             if document == nil {
@@ -387,6 +418,7 @@ final class AppModel: ObservableObject {
     }
 
     private func apply(_ loaded: PlaylistDocument) {
+        resetSaveChrome()
         document = loaded
         if loaded.recipient != nil {
             yearText = String(loaded.playlist.graduationYear)
@@ -424,7 +456,8 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    private func ensureShare() async -> ShareLink? {
+    private func ensureShare(surfaceError: Bool, documentTicket: Int? = nil) async -> ShareLink? {
+        let ticket = documentTicket ?? generation
         guard let document else { return nil }
         if document.recipient != nil, let existing = document.share {
             shareLink = existing
@@ -439,6 +472,7 @@ final class AppModel: ObservableObject {
         do {
             let year = document.playlist.graduationYear
             let created = try await PlaylistAPI.share(graduationYear: year, title: title)
+            guard generation == ticket else { return nil }
             guard self.document?.playlist.graduationYear == year else { return nil }
             shareLink = created.link
             shareTitle = title
@@ -446,8 +480,10 @@ final class AppModel: ObservableObject {
             renderArtwork()
             return created.link
         } catch {
-            playlistError = error.localizedDescription
-            status = ""
+            if ShareErrorRouting.replacesPlaylistError(explicit: surfaceError, sameDocument: generation == ticket) {
+                playlistError = error.localizedDescription
+                status = ""
+            }
             return nil
         }
     }

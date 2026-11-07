@@ -205,6 +205,50 @@ final class PlaylistTimeMachineTests: XCTestCase {
         XCTAssertNotEqual(LibrarySavePolicy.checkingLabel, LibrarySavePolicy.savingLabel)
     }
 
+    func testStaleSaveDoesNotClaimTheNextPlaylist() {
+        let idle = AppleMusicSaveTrack.noTask
+        let first = AppleMusicSaveTrack.begin(taskTicket: idle, generation: 1)
+        XCTAssertEqual(first, 1)
+        XCTAssertEqual(AppleMusicSaveTrack.begin(taskTicket: first, generation: 1), first)
+
+        let released = AppleMusicSaveTrack.release()
+        XCTAssertEqual(released, idle)
+        let second = AppleMusicSaveTrack.begin(taskTicket: released, generation: 2)
+        XCTAssertEqual(second, 2)
+
+        let legacyClearsTheNewTask = idle
+        let kept = AppleMusicSaveTrack.nextTaskTicket(taskTicket: second, ticket: first, generation: 2)
+        XCTAssertEqual(kept, second)
+        XCTAssertNotEqual(kept, legacyClearsTheNewTask)
+        XCTAssertFalse(AppleMusicSaveTrack.clearsWorking(taskTicket: second, ticket: first, generation: 2))
+        XCTAssertFalse(AppleMusicSaveTrack.isCurrent(taskTicket: second, ticket: first, generation: 2))
+
+        XCTAssertTrue(AppleMusicSaveTrack.clearsWorking(taskTicket: second, ticket: second, generation: 2))
+        XCTAssertEqual(AppleMusicSaveTrack.nextTaskTicket(taskTicket: second, ticket: second, generation: 2), idle)
+
+        let samePlaylist = AppleMusicSaveTrack.begin(taskTicket: idle, generation: 4)
+        XCTAssertTrue(AppleMusicSaveTrack.isCurrent(taskTicket: samePlaylist, ticket: samePlaylist, generation: 4))
+        XCTAssertTrue(AppleMusicSaveTrack.clearsWorking(taskTicket: samePlaylist, ticket: samePlaylist, generation: 4))
+    }
+
+    func testNewDocumentDropsSaveChromeAndPrefetchDoesNotReplaceTheSaveError() {
+        XCTAssertTrue(PlaylistSaveChrome.kept(value: true, replacedDocument: false))
+        XCTAssertFalse(PlaylistSaveChrome.kept(value: true, replacedDocument: true))
+        XCTAssertFalse(PlaylistSaveChrome.clearsSaveChrome(replacedDocument: false))
+        XCTAssertTrue(PlaylistSaveChrome.clearsSaveChrome(replacedDocument: true))
+
+        let saveError = "An Apple Music subscription is required to add these songs to your library. Nothing was saved."
+        var shown = saveError
+        if ShareErrorRouting.replacesPlaylistError(explicit: false, sameDocument: true) {
+            shown = "The share link could not be saved."
+        }
+        XCTAssertEqual(shown, saveError)
+        XCTAssertFalse(ShareErrorRouting.replacesPlaylistError(explicit: true, sameDocument: false))
+        XCTAssertTrue(ShareErrorRouting.replacesPlaylistError(explicit: true, sameDocument: true))
+        let legacyAlwaysReplaces = true
+        XCTAssertNotEqual(ShareErrorRouting.replacesPlaylistError(explicit: false, sameDocument: true), legacyAlwaysReplaces)
+    }
+
     func testDetachedLibrarySaveSurvivesCancellingTheSheetTask() async {
         let started = expectation(description: "library save started")
         let finished = expectation(description: "library save finished")
